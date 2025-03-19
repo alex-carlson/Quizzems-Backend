@@ -24,7 +24,7 @@ mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('MongoDB Connected'))
     .catch(err => console.error(err));
 
-const conn = mongoose.createConnection(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true });
+const conn = mongoose.createConnection(process.env.MONGO_URI);
 
 // Initialize GridFSBucket
 let gfs;
@@ -171,11 +171,11 @@ app.post("/upload", verifyToken, async (req, res) => {
 
         await newCollection.save();
 
-        res.status(201).send("Image text saved successfully");
-        console.log(`New image text saved: ${category}`);
+        res.status(201).send("Collection saved successfully");
+        console.log(`New collection saved: ${category}`);
     } catch (error) {
-        console.error("Error processing images:", error);
-        res.status(500).send("Error processing images");
+        console.error("Error processing collection:", error);
+        res.status(500).send("Error processing collection");
     }
 });
 
@@ -193,8 +193,14 @@ async function processItems(items) {
             const fileId = await saveImageToDB(
                 compressedBuffer,
                 item.answer,
-            );
-            return { imageUrl: fileId, text: item.answer };
+            ).then((imageId) => {
+                console.log("Image saved with ID:", imageId);
+                return { imageUrl: imageId, text: item.answer };
+            })
+                .catch((err) => {
+                    console.error("Error saving image:", err);
+                    return null;
+                });
         }),
     ).then((results) => results.filter(Boolean)); // Remove null values
 }
@@ -299,9 +305,15 @@ app.get("/image/:id", async (req, res) => {
     }
 });
 
-// Start the server
-// if running local
+const PORT = process.env.PORT || 5000;
+
+// Check if the environment is development or production
 if (process.env.NODE_ENV === 'development') {
-    app.listen(5000, () => console.log("Server running on port 5000"));
+    // For local development, start the server on localhost:5000
+    app.listen(PORT, () => {
+        console.log(`🌍 Server running on http://localhost:${PORT}`);
+    });
 }
+
+// For Vercel deployment (production), export the app as a serverless function
 export default app;
