@@ -1,0 +1,6 @@
+.vercel
+node_modules
+uploads
+compressed
+.env
+package-lock.json
