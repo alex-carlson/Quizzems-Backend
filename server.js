@@ -146,8 +146,11 @@ app.post("/login", async (req, res) => {
 });
 
 app.post("/upload", verifyToken, async (req, res) => {
+    console.log("Uploading item:", req.body);
     try {
-        const { category, author, items } = req.body;
+        // parse the form data to get Category, Author and Item.
+        const { category, author, item } = req.body;
+
 
         if (!category || !author || !Array.isArray(items) || items.length === 0) {
             return res.status(400).send("Invalid input data");
@@ -157,19 +160,17 @@ app.post("/upload", verifyToken, async (req, res) => {
         const existingCollection = await Collection.findOne({ author, category });
 
         if (existingCollection) {
-            // If a collection exists, remove the old one
-            await Collection.deleteOne({ author, category });
-            console.log(`Existing collection with ${category} deleted`);
+            // If a collection exists, add the new item to it
+            existingCollection.items.push(...processItem(item));
+        } else {
+            const newCollection = new Collection({
+                category,
+                author,
+                items: processItem(item),
+            });
+            await newCollection.save();
         }
 
-        // Create and save the new collection
-        const newCollection = new Collection({
-            category,
-            author,
-            items: processItems(items),
-        });
-
-        await newCollection.save();
 
         res.status(201).send("Collection saved successfully");
         console.log(`New collection saved: ${category}`);
@@ -178,32 +179,6 @@ app.post("/upload", verifyToken, async (req, res) => {
         res.status(500).send("Error processing collection");
     }
 });
-
-async function processItems(items) {
-    return Promise.all(
-        items.map(async (item) => {
-            if (!item.imageData) return null;
-
-            const imageBuffer = base64ToBuffer(item.imageData);
-            const compressedBuffer = await sharp(imageBuffer)
-                .resize(400)
-                .jpeg({ quality: 50 })
-                .toBuffer();
-
-            const fileId = await saveImageToDB(
-                compressedBuffer,
-                item.answer,
-            ).then((imageId) => {
-                console.log("Image saved with ID:", imageId);
-                return { imageUrl: imageId, text: item.answer };
-            })
-                .catch((err) => {
-                    console.error("Error saving image:", err);
-                    return null;
-                });
-        }),
-    ).then((results) => results.filter(Boolean)); // Remove null values
-}
 
 // Route to get user's collections
 app.get("/user/collections", verifyToken, async (req, res) => {
@@ -254,27 +229,15 @@ app.get("/collection/:id", async (req, res) => {
     }
 });
 
-// Backend route to update the collection
-app.post("/update-collection", verifyToken, async (req, res) => {
+app.get("/deleteImage/:id", async (req, res) => {
+    // remove image that matches id
     try {
-        const { category, author, items } = req.body;
-        const userId = req.user._id;  // Get the logged-in user's ID
-
-        // Find and update the collection
-        const updatedCollection = await Collection.findOneAndUpdate(
-            { _id: req.body._id, author: userId },
-            { category, author, items },
-            { new: true } // Return the updated document
-        );
-
-        if (!updatedCollection) {
-            return res.status(404).json({ message: "Collection not found or unauthorized" });
-        }
-
-        res.status(200).json(updatedCollection);
+        const imageId = req.params.id;
+        await gfs.delete(new mongoose.Types.ObjectId(imageId));
+        res.status(200).json({ message: "Image deleted" });
     } catch (error) {
-        console.error("Error updating collection:", error);
-        res.status(500).json({ message: "Error updating collection", error });
+        console.error("Error deleting image:", error);
+        res.status(500).json({ message: "Error deleting image" });
     }
 });
 
@@ -305,7 +268,7 @@ app.get("/image/:id", async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3000;
 
 // Check if the environment is development or production
 if (process.env.NODE_ENV === 'development') {
