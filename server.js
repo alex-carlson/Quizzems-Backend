@@ -40,8 +40,10 @@ conn.once('open', () => {
 
 // Helper function to convert base64 to buffer
 const base64ToBuffer = (base64String) => {
-    const base64Data = base64String.replace(/^data:image\/\w+;base64,/, ''); // Remove metadata if present
-    return Buffer.from(base64Data, 'base64');
+    console.log("Converting base64 to buffer...");
+    // use regex to remove header and data url part of the string
+    const base64Image = base64String.replace(/^data:image\/jpeg;base64,/, '');
+    return Buffer.from(base64Image, 'base64');
 };
 
 const saveImageToDB = (imageBuffer, filename) => {
@@ -49,6 +51,14 @@ const saveImageToDB = (imageBuffer, filename) => {
     return new Promise((resolve, reject) => {
         // Create a GridFSBucket stream
         const bucket = new GridFSBucket(conn.db, { bucketName: 'uploads' });
+
+        // if the bucket already has a file with the same name, return early
+        const existingFile = bucket.find({ filename }).toArray();
+
+        if (existingFile.length > 0) {
+            console.log("File with the same name already exists:", filename);
+            return reject("File with the same name already exists");
+        }
 
         const uploadStream = bucket.openUploadStream(filename, {
             contentType: 'image/jpeg',  // Define the MIME type of the image
@@ -67,6 +77,20 @@ const saveImageToDB = (imageBuffer, filename) => {
         // Pipe the image buffer into the GridFS bucket's upload stream
         uploadStream.end(imageBuffer);
     });
+};
+
+const processItem = async (category, author, item) => {
+    console.log("Processing item...");
+    const buffer = base64ToBuffer(item.file);
+    const filename = `${author}-${category}-${item.answer}.jpeg`;
+    filename.replace(/[^a-zA-Z0-9]/g, '');
+    const imageId = await saveImageToDB(buffer, filename);
+    // create item schema
+    return {
+        id: imageId,
+        image: filename,
+        answer: item.answer
+    };
 };
 
 const verifyToken = (req, res, next) => {
@@ -134,8 +158,7 @@ app.post("/login", async (req, res) => {
         const JWT_SECRET = process.env.JWT_SECRET;
         const payload = { username: user.username };
         const token = jwt.sign(payload, JWT_SECRET, {
-            expiresIn
-                : "1h"
+            expiresIn: '30d'
         });
 
         res.status(200).json({ message: "Login successful!", token: token, username: user.username });
@@ -146,13 +169,12 @@ app.post("/login", async (req, res) => {
 });
 
 app.post("/upload", verifyToken, async (req, res) => {
-    console.log("Uploading item:", req.body);
     try {
         // parse the form data to get Category, Author and Item.
         const { category, author, item } = req.body;
 
 
-        if (!category || !author || !Array.isArray(items) || items.length === 0) {
+        if (!category || !author || item === undefined) {
             return res.status(400).send("Invalid input data");
         }
 
@@ -160,13 +182,20 @@ app.post("/upload", verifyToken, async (req, res) => {
         const existingCollection = await Collection.findOne({ author, category });
 
         if (existingCollection) {
+            console.log("Found existing collection:", existingCollection.category);
+            let newItem = await processItem(category, author, item);
+            console.log("New item:", newItem);
             // If a collection exists, add the new item to it
-            existingCollection.items.push(...processItem(item));
+            existingCollection.items.push(newItem);
+            await existingCollection.save();
         } else {
+            const newItem = await processItem(category, author, item);
+            console.log("Creating new collection:", category);
+            console.log("New item:", newItem);
             const newCollection = new Collection({
                 category,
                 author,
-                items: processItem(item),
+                items: [newItem]
             });
             await newCollection.save();
         }
@@ -182,10 +211,8 @@ app.post("/upload", verifyToken, async (req, res) => {
 
 // Route to get user's collections
 app.get("/user/collections", verifyToken, async (req, res) => {
-    console.log("Fetching collections for user:", req.user.username);
     try {
         const userId = req.user.username;  // Get the logged-in user's ID
-        console.log("Looking for Collection where author is:", userId);
         const collections = await Collection.find({ author: userId });
 
         if (!collections || collections.length === 0) {
@@ -200,10 +227,10 @@ app.get("/user/collections", verifyToken, async (req, res) => {
 });
 
 // Backend route to get a single collection's data
-app.get("/collections/", verifyToken, async (req, res) => {
-    // get all collections
+app.get("/collections", async (req, res) => {
     try {
-        const collections = await Collection.find({});
+        const collections = await Collection.find();
+        console.log("Fetching collections:", collections);
         res.status(200).json(collections);
     } catch (error) {
         console.error("Error fetching collections:", error);
@@ -211,7 +238,25 @@ app.get("/collections/", verifyToken, async (req, res) => {
     }
 });
 
-// Backend route to get a single collection's data
+app.get("/remove", verifyToken, async (req, res) => {
+    try {
+        console.log("Removing item with ID:", req.body.id);
+        const { collection, id } = req.body;
+        const collections = await Collection.findOne({ category: collection });
+        if (!collections) {
+            return res.status(404).json({ message: "Collection not found" });
+        }
+        const items = collections.items;
+        const newItems = items.filter(item => item.id !== id);
+        collections.items = newItems;
+        await collections.save();
+        res.status(200).json(collections);
+    } catch (error) {
+        console.error("Error fetching collections:", error);
+        res.status(500).json({ message: "Error fetching collections" });
+    }
+});
+
 app.get("/collection/:id", async (req, res) => {
     console.log("Fetching collection with ID:", req.params.id);
     try {
@@ -226,18 +271,6 @@ app.get("/collection/:id", async (req, res) => {
     } catch (error) {
         console.error("Error fetching collection:", error);
         res.status(500).json({ message: "Error fetching collection" });
-    }
-});
-
-app.get("/deleteImage/:id", async (req, res) => {
-    // remove image that matches id
-    try {
-        const imageId = req.params.id;
-        await gfs.delete(new mongoose.Types.ObjectId(imageId));
-        res.status(200).json({ message: "Image deleted" });
-    } catch (error) {
-        console.error("Error deleting image:", error);
-        res.status(500).json({ message: "Error deleting image" });
     }
 });
 
