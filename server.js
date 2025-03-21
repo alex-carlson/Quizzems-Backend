@@ -294,8 +294,6 @@ app.get("/collection/:id", async (req, res) => {
 
 app.get("/image/:id", async (req, res) => {
     try {
-        console.log("Fetching image with ID:", req.params.id);
-
         // Validate ObjectId before using it
         if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
             console.error("Invalid ObjectId:", req.params.id);
@@ -303,6 +301,7 @@ app.get("/image/:id", async (req, res) => {
         }
 
         const fileId = new mongoose.Types.ObjectId(req.params.id);
+        console.log("Fetching image with ID:", fileId);
         const downloadStream = gfs.openDownloadStream(fileId);
 
         // Handle errors from GridFS stream
