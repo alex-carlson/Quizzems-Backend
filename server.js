@@ -94,6 +94,7 @@ const processItem = async (category, author, item) => {
 };
 
 const verifyToken = (req, res, next) => {
+    console.log("Verifying token...");
     const token = req.header('Authorization')?.replace('Bearer ', '');
 
     if (!token) {
@@ -238,9 +239,8 @@ app.get("/collections", async (req, res) => {
     }
 });
 
-app.get("/remove", verifyToken, async (req, res) => {
+app.post("/remove", verifyToken, async (req, res) => {
     try {
-        console.log("Removing item with ID:", req.body.id);
         const { collection, id } = req.body;
         const collections = await Collection.findOne({ category: collection });
         if (!collections) {
