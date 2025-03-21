@@ -183,16 +183,12 @@ app.post("/upload", verifyToken, async (req, res) => {
         const existingCollection = await Collection.findOne({ author, category });
 
         if (existingCollection) {
-            console.log("Found existing collection:", existingCollection.category);
             let newItem = await processItem(category, author, item);
-            console.log("New item:", newItem);
             // If a collection exists, add the new item to it
             existingCollection.items.push(newItem);
             await existingCollection.save();
         } else {
             const newItem = await processItem(category, author, item);
-            console.log("Creating new collection:", category);
-            console.log("New item:", newItem);
             const newCollection = new Collection({
                 category,
                 author,
