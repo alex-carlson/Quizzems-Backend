@@ -231,7 +231,29 @@ app.get("/user/collections", verifyToken, async (req, res) => {
 app.get("/collections", async (req, res) => {
     try {
         const collections = await Collection.find();
-        console.log("Fetching collections:", collections);
+        res.status(200).json(collections);
+    } catch (error) {
+        console.error("Error fetching collections:", error);
+        res.status(500).json({ message: "Error fetching collections" });
+    }
+});
+
+app.post("/update", verifyToken, async (req, res) => {
+    try {
+        const { collection, id, answer } = req.body;
+        const collections = await Collection.findOne({ category: collection });
+        if (!collections) {
+            return res.status(404).json({ message: "Collection not found" });
+        }
+        const items = collections.items;
+        const updatedItems = items.map(item => {
+            if (item.id === id) {
+                item.answer = answer;
+            }
+            return item;
+        });
+        collections.items = updatedItems;
+        await collections.save();
         res.status(200).json(collections);
     } catch (error) {
         console.error("Error fetching collections:", error);
@@ -290,10 +312,9 @@ app.get("/image/:id", async (req, res) => {
         // Handle errors from GridFS stream
         downloadStream.on("error", (err) => {
             console.error("GridFS Stream Error:", err);
-            res.status(500).json({ error: "Image not found or corrupted" });
+            res.status(404).json({ error: "Image not found or corrupted" });
         });
 
-        res.setHeader("Content-Type", "image/jpeg"); // Adjust based on file type
         downloadStream.pipe(res);
     } catch (error) {
         console.error("Error fetching image:", error);
