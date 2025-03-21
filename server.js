@@ -26,6 +26,18 @@ mongoose.connect(process.env.MONGO_URI)
 
 const conn = mongoose.createConnection(process.env.MONGO_URI);
 
+// Initialize GridFSBucket
+let gfs;
+
+conn.once('open', () => {
+    const bucket = new mongoose.mongo.GridFSBucket(conn.db, {
+        bucketName: 'uploads'  // Specify your collection name (can be 'uploads' or any other)
+    });
+    gfs = bucket;
+    console.log('GridFSBucket Initialized');
+});
+
+
 // Helper function to convert base64 to buffer
 const base64ToBuffer = (base64String) => {
     console.log("Converting base64 to buffer...");
@@ -281,8 +293,6 @@ app.get("/collection/:id", async (req, res) => {
 });
 
 app.get("/image/:id", async (req, res) => {
-    const db = mongoose.connection.db;
-    const gfs = new GridFSBucket(db, { bucketName: 'uploads' });
     try {
         // Validate ObjectId before using it
         if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
