@@ -26,16 +26,16 @@ mongoose.connect(process.env.MONGO_URI)
 
 const conn = mongoose.createConnection(process.env.MONGO_URI);
 
-// Initialize GridFSBucket
-let gfs;
+// // Initialize GridFSBucket
+// let gfs;
 
-conn.once('open', () => {
-    const bucket = new mongoose.mongo.GridFSBucket(conn.db, {
-        bucketName: 'uploads'  // Specify your collection name (can be 'uploads' or any other)
-    });
-    gfs = bucket;
-    console.log('GridFSBucket Initialized');
-});
+// conn.once('open', () => {
+//     const bucket = new mongoose.mongo.GridFSBucket(conn.db, {
+//         bucketName: 'uploads'  // Specify your collection name (can be 'uploads' or any other)
+//     });
+//     gfs = bucket;
+//     console.log('GridFSBucket Initialized');
+// });
 
 
 // Helper function to convert base64 to buffer
@@ -300,9 +300,12 @@ app.get("/image/:id", async (req, res) => {
             return res.status(400).json({ error: "Invalid image ID" });
         }
 
+        const db = mongoose.connection.db;
+        const gfs = new GridFSBucket(db, { bucketName: 'uploads' });
+
         const fileId = new mongoose.Types.ObjectId(req.params.id);
         console.log("Fetching image with ID:", fileId);
-        const downloadStream = gfs.openDownloadStream(fileId);
+        const downloadStream = await gfs.openDownloadStream(fileId);
 
         // Handle errors from GridFS stream
         downloadStream.on("error", (err) => {
