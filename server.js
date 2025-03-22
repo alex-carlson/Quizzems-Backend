@@ -19,10 +19,15 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log('MongoDB Connected'))
-    .catch(err => console.error(err));
+const connectToDatabase = async () => {
+    if (mongoose.connection.readyState === 0) {
+        await mongoose.connect(process.env.MONGO_URI, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+        });
+        console.log("MongoDB connected");
+    }
+};
 
 const conn = mongoose.createConnection(process.env.MONGO_URI);
 
@@ -113,6 +118,7 @@ const verifyToken = (req, res, next) => {
 // Signup Route - Register a new user
 app.post("/signup", async (req, res) => {
     try {
+        await connectToDatabase();
         const { username, email, password } = req.body;
 
         // Validate input
@@ -148,6 +154,7 @@ app.post("/signup", async (req, res) => {
 // Login Route - Authenticate the user
 app.post("/login", async (req, res) => {
     try {
+        await connectToDatabase();
         const { username, password } = req.body;
 
         const user = await User.findOne({ username });
@@ -171,6 +178,7 @@ app.post("/login", async (req, res) => {
 
 app.post("/upload", verifyToken, async (req, res) => {
     try {
+        await connectToDatabase();
         // parse the form data to get Category, Author and Item.
         const { category, author, item } = req.body;
 
@@ -209,6 +217,7 @@ app.post("/upload", verifyToken, async (req, res) => {
 // Route to get user's collections
 app.get("/user/collections", verifyToken, async (req, res) => {
     try {
+        await connectToDatabase();
         const userId = req.user.username;  // Get the logged-in user's ID
         const collections = await Collection.find({ author: userId });
 
@@ -226,6 +235,7 @@ app.get("/user/collections", verifyToken, async (req, res) => {
 // Backend route to get a single collection's data
 app.get("/collections", async (req, res) => {
     try {
+        await connectToDatabase();
         const collections = await Collection.find();
         res.status(200).json(collections);
     } catch (error) {
@@ -236,7 +246,33 @@ app.get("/collections", async (req, res) => {
 
 app.post("/update", verifyToken, async (req, res) => {
     try {
+        await connectToDatabase();
         const { collection, id, answer } = req.body;
+        const collections = await Collection.findOne({ category: collection });
+        if (!collections) {
+            return res.status(404).json({ message: "Collection not found" });
+        }
+        const items = collections.items;
+        const updatedItems = items.map(item => {
+            if (item.id === id) {
+                item.answer = answer;
+            }
+            return item;
+        });
+        collections.items = updatedItems;
+        await collections.save();
+        res.status(200).json(collections);
+    } catch (error) {
+        console.error("Error fetching collections:", error);
+        res.status(500).json({ message: "Error fetching collections" });
+    }
+});
+
+app.post("/edit", verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        console.log("Editing item...");
+        const { collection, id, answer} = req.body;
         const collections = await Collection.findOne({ category: collection });
         if (!collections) {
             return res.status(404).json({ message: "Collection not found" });
@@ -259,6 +295,7 @@ app.post("/update", verifyToken, async (req, res) => {
 
 app.post("/remove", verifyToken, async (req, res) => {
     try {
+        await connectToDatabase();
         const { collection, id } = req.body;
         const collections = await Collection.findOne({ category: collection });
         if (!collections) {
@@ -278,6 +315,7 @@ app.post("/remove", verifyToken, async (req, res) => {
 app.get("/collection/:id", async (req, res) => {
     console.log("Fetching collection with ID:", req.params.id);
     try {
+        await connectToDatabase();
         const collectionId = req.params.id;
         const collection = await Collection.findById(collectionId);
 
@@ -294,6 +332,7 @@ app.get("/collection/:id", async (req, res) => {
 
 app.get("/image/:id", async (req, res) => {
     try {
+        await connectToDatabase();
         // Validate ObjectId before using it
         if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
             console.error("Invalid ObjectId:", req.params.id);
@@ -304,7 +343,6 @@ app.get("/image/:id", async (req, res) => {
         const gfs = new GridFSBucket(db, { bucketName: 'uploads' });
 
         const fileId = new mongoose.Types.ObjectId(req.params.id);
-        console.log("Fetching image with ID:", fileId);
         const downloadStream = await gfs.openDownloadStream(fileId);
 
         // Handle errors from GridFS stream
