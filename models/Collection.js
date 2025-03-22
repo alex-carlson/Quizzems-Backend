@@ -8,6 +8,7 @@ const ItemSchema = new mongoose.Schema({
 
 const CollectionsSchema = new mongoose.Schema({
     category: String,
+    slug: String,
     author: String,
     items: [ItemSchema]
 });

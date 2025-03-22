@@ -42,6 +42,10 @@ const conn = mongoose.createConnection(process.env.MONGO_URI);
 //     console.log('GridFSBucket Initialized');
 // });
 
+const slugify = (text) => {
+    //replace spaces with hyphens, convert to lowercase, remove all special characters except / and -
+    return text.toString().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9/-]/g, '');
+};
 
 // Helper function to convert base64 to buffer
 const base64ToBuffer = (base64String) => {
@@ -132,7 +136,7 @@ app.post("/signup", async (req, res) => {
 
         if (existingUser) {
             console.log("User already exists:", email);
-            return res.status(400).json({ error: "Username already exists" });
+            return res.status(400).json({ error: "Email already in use" });
         }
 
         // Create and save the new user
@@ -155,9 +159,18 @@ app.post("/signup", async (req, res) => {
 app.post("/login", async (req, res) => {
     try {
         await connectToDatabase();
-        const { username, password } = req.body;
+        const { username, email, password } = req.body;
 
-        const user = await User.findOne({ username });
+        // if username is not null, find user by username, otherwise find by email
+        let user;
+        if(username === null) {
+            user = await User.findOne({ email });
+        } else {
+            user = await User.findOne({ username });
+        }
+
+        console.log("User found:", user);
+
         if (!user) return res.status(404).json({ message: "User not found" });
 
         const isMatch = await user.comparePassword(password);
@@ -194,11 +207,13 @@ app.post("/upload", verifyToken, async (req, res) => {
             let newItem = await processItem(category, author, item);
             // If a collection exists, add the new item to it
             existingCollection.items.push(newItem);
+            existingCollection.slug = slugify(author + "/" + category);
             await existingCollection.save();
         } else {
             const newItem = await processItem(category, author, item);
             const newCollection = new Collection({
                 category,
+                slug: slugify(author + "/" + category),
                 author,
                 items: [newItem]
             });
@@ -259,6 +274,7 @@ app.post("/update", verifyToken, async (req, res) => {
             }
             return item;
         });
+        collections.slug = slugify(collections.author + "/" + collections.category);
         collections.items = updatedItems;
         await collections.save();
         res.status(200).json(collections);
@@ -309,6 +325,33 @@ app.post("/remove", verifyToken, async (req, res) => {
     } catch (error) {
         console.error("Error fetching collections:", error);
         res.status(500).json({ message: "Error fetching collections" });
+    }
+});
+
+app.get("/collectionId/:author/:collectionName", async (req, res) => {
+    try {
+        await connectToDatabase();
+        
+        const author = req.params.author;
+        const collectionName = req.params.collectionName;
+
+        const slug = slugify(author + "/" + collectionName);
+
+        console.log("Slug:", slug);
+
+        // get collections by author
+        const collections = await Collection.find({ author: author });
+        // get collection where slug matches collectionName
+        const collection = await collections.find(collection => collection.slug === slug);
+
+        if (!collection) {
+            return res.status(404).json({ message: "Collection not found" });
+        }
+
+        res.status(200).json(collection);
+    } catch (error){
+        console.error("Error fetching collection:", error);
+        res.status(500).json({ message: "Error fetching collection" });
     }
 });
 
