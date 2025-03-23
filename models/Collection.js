@@ -10,7 +10,8 @@ const CollectionsSchema = new mongoose.Schema({
     category: String,
     slug: String,
     author: String,
-    items: [ItemSchema]
+    private: Boolean,
+    items: [ItemSchema],
 });
 
 export default mongoose.models.Collection || mongoose.model("Collection", CollectionsSchema);

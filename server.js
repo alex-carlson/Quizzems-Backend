@@ -162,13 +162,11 @@ app.post("/login", async (req, res) => {
 
         // if username is not null, find user by username, otherwise find by email
         let user;
-        if(username === null) {
+        if(email !== "") {
             user = await User.findOne({ email });
         } else {
             user = await User.findOne({ username });
         }
-
-        console.log("User found:", user);
 
         if (!user) return res.status(404).json({ message: "User not found" });
 
@@ -185,6 +183,60 @@ app.post("/login", async (req, res) => {
     } catch (error) {
         console.error("Error logging in:", error);
         res.status(500).json({ message: "Server error", error });
+    }
+});
+
+app.get("/user", verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const user = await User.findOne({ username: req.user.username });
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        res.status(200).json(user);
+    } catch (error) {
+        // send error message back to user
+        console.error("Error fetching user:", error);
+        res.status(500).json({ message: "Error fetching user" });
+    }
+});
+
+app.put("/changePassword", verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { email, password } = req.body;
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        user.password = password;
+        await user.save();
+        res.status(200).json(user);
+    } catch (error) {
+        console.error("Error changing password:", error);
+        res.status(500).json({ message: "Error changing password" });
+    }
+});
+
+app.delete("/deleteAccount", verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { email } = req.body;
+        const user = await User
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        await User.delete({ email });
+        res.status(200).json({ message: "User deleted successfully" });
+    } catch (error) {
+        console.error("Error deleting user:", error);
+        res.status(500).json({message: "Error deleting user"})
     }
 });
 
@@ -225,6 +277,34 @@ app.post("/upload", verifyToken, async (req, res) => {
     } catch (error) {
         console.error("Error processing collection:", error);
         res.status(500).send("Error processing collection");
+    }
+});
+
+app.put("/changeUsername", verifyToken, async (req, res) => {
+    console.log("Changing username...");
+    try {
+        await connectToDatabase();
+        const { username, email } = req.body;
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // find all collections by user and update author
+        const collections = await Collection.find({ author: user.username });
+        collections.forEach(async collection => {
+            collection.author = username;
+            collection.slug = slugify(username + "/" + collection.category);
+            await collection.save();
+        });
+
+        user.username = username;
+        await user.save();
+        res.status(200).json(user);
+    } catch (error) {
+        console.error("Error fetching user:", error);
+        res.status(500).json({ message: "Error fetching user" });
     }
 });
 
@@ -270,6 +350,24 @@ app.post("/renameCollection", verifyToken, async (req, res) => {
             res.status(200).json(collections);
         }
 
+    } catch (error) {
+        console.error("Error fetching collections:", error);
+        res.status(500).json({ message: "Error fetching collections" });
+    }
+});
+
+app.post("/deleteCollection", verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        const { id, author } = req.body;
+        const collection = await Collection.findOne({ author, _id: id });
+
+        if (!collection) {
+            return res.status(404).json({ message: "Collection not found" });
+        }
+
+        await collection.remove();
+        res.status(200).json({ message: "Collection deleted successfully" });
     } catch (error) {
         console.error("Error fetching collections:", error);
         res.status(500).json({ message: "Error fetching collections" });
@@ -383,12 +481,9 @@ app.get("/collectionId/:author/:collectionName", async (req, res) => {
 
         const slug = slugify(author + "/" + collectionName);
 
-        console.log("Slug:", slug);
-
-        // get collections by author
-        const collections = await Collection.find({ author: author });
-        // get collection where slug matches collectionName
-        const collection = await collections.find(collection => collection.slug === slug);
+        
+        console.log("finding collection with slug:", slug);
+        const collection = await Collection.findOne({ slug: slug });
 
         if (!collection) {
             return res.status(404).json({ message: "Collection not found" });
