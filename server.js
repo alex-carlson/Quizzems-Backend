@@ -103,7 +103,6 @@ const processItem = async (category, author, item) => {
 };
 
 const verifyToken = (req, res, next) => {
-    console.log("Verifying token...");
     const token = req.header('Authorization')?.replace('Bearer ', '');
 
     if (!token) {
@@ -247,6 +246,36 @@ app.get("/user/collections", verifyToken, async (req, res) => {
     }
 });
 
+app.post("/renameCollection", verifyToken, async (req, res) => {
+    try {
+        await connectToDatabase();
+        console.log(req.body);
+        const { id, category, author } = req.body;
+        const collections = await Collection.findOne({ author, _id: id });
+
+        if (!collections) {
+            // create a new collection
+            const newCollection = new Collection({
+                category,
+                slug: slugify(author + "/" + category),
+                author,
+                items: []
+            });
+            await newCollection.save();
+            res.status(201).json(newCollection);
+        } else {
+            collections.category = category;
+            collections.slug = slugify(author + "/" + category);
+            await collections.save();
+            res.status(200).json(collections);
+        }
+
+    } catch (error) {
+        console.error("Error fetching collections:", error);
+        res.status(500).json({ message: "Error fetching collections" });
+    }
+});
+
 // Backend route to get a single collection's data
 app.get("/collections", async (req, res) => {
     try {
@@ -321,6 +350,23 @@ app.post("/remove", verifyToken, async (req, res) => {
         const newItems = items.filter(item => item.id !== id);
         collections.items = newItems;
         await collections.save();
+        res.status(200).json(collections);
+    } catch (error) {
+        console.error("Error fetching collections:", error);
+        res.status(500).json({ message: "Error fetching collections" });
+    }
+});
+
+app.get("/collections/:author", async (req, res) => {
+    try {
+        await connectToDatabase();
+        const author = req.params.author;
+        const collections = await Collection.find({ author: author });
+
+        if (!collections || collections.length === 0) {
+            return res.status(404).json({ message: "No collections found" });
+        }
+
         res.status(200).json(collections);
     } catch (error) {
         console.error("Error fetching collections:", error);
