@@ -39,63 +39,54 @@ const slugify = (text) => {
 
 // Helper function to convert base64 to buffer
 const base64ToBuffer = (base64String) => {
-    console.log("Converting base64 to buffer...");
     // use regex to remove header and data url part of the string
     const base64Image = base64String.replace(/^data:image\/jpeg;base64,/, '');
     return Buffer.from(base64Image, 'base64');
 };
 
-const saveImageToDB = (imageBuffer, filename) => {
-    return new Promise(async (resolve, reject) => {
-        try {
-            // Check if the file already exists in the Supabase storage
-            const { data: existingFiles, error: listError } = await supabase
-                .storage
-                .from('uploads') // 'uploads' is your Supabase bucket name
-                .list('', { search: filename, limit: 1 });
+const uploadImageAndUpdateDB = async (fileBuffer, fileName, userId, category) => {
+    const bucketName = "uploads";
+    const storagePath = `${userId}/${category}/${fileName}.jpeg`;
 
-            if (listError) {
-                console.error("Error checking file existence:", listError);
-                return reject(listError);
-            }
+    // Upload image to Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+        .from(bucketName)
+        .upload(storagePath, fileBuffer, { upsert: true, contentType: 'image/jpeg' });
 
-            if (existingFiles.length > 0) {
-                console.log("File with the same name already exists:", filename);
-                return reject("File with the same name already exists");
-            }
+    if (uploadError) {
+        console.error("Error uploading file:", uploadError.message);
+        throw new Error("Failed to upload image");
+    }
 
-            // Upload the file to Supabase Storage
-            const { data, error: uploadError } = await supabase
-                .storage
-                .from('uploads') // Your Supabase bucket name
-                .upload(filename, imageBuffer, {
-                    contentType: 'image/jpeg', // Define the MIME type of the image
-                    upsert: false // Prevent overwriting existing files with the same name
-                });
+    // Generate the public URL for the uploaded image
+    const imageUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/${bucketName}/${storagePath}`;
+    const dateString = new Date().toISOString(); // Get the current date in ISO format
 
-            if (uploadError) {
-                console.error("Error uploading image to Supabase:", uploadError);
-                return reject(uploadError);
-            }
+    // Update Supabase database table with image reference
+    const { data, error } = await supabase
+        .from("files") // Change this to your table
+        .insert([{ url: imageUrl, filename: fileName, created_at: dateString, size: fileBuffer.length }])
+        .select("*"); // Select all fields to get the inserted data back
 
-            console.log("Upload finished.");
-            resolve(data);  // 'data' contains the file information, like file name and public URL
-        } catch (err) {
-            console.error("Error uploading image:", err);
-            reject(err);
-        }
-    });
+    if (error) {
+        console.error("Error updating database:", error.message);
+        throw new Error("Failed to update database");
+    }
+
+    return data;
 };
 
+
 const processItem = async (category, author, item) => {
-    console.log("Processing item...");
     const buffer = base64ToBuffer(item.file);
-    const filename = `${author}-${category}-${item.answer}.jpeg`;
-    filename.replace(/[^a-zA-Z0-9]/g, '');
-    const imageId = await saveImageToDB(buffer, filename);
+    const filename = `${author}-${category}-${item.answer}`;
+    const slug = slugify(filename); // Create a slug for the filename
+    console.log("Saving image to server as: ", slug);
+    const imageData = await uploadImageAndUpdateDB(buffer, slug, author, category);
+    const imageId = imageData.url; // Get the path of the uploaded image
     // create item schema
     return {
-        id: imageId,
+        id: imageData.filename + ".jpeg",
         image: filename,
         answer: item.answer
     };
@@ -244,7 +235,6 @@ app.post("/upload", verifyToken, async (req, res) => {
         await connectToDatabase();
         // parse the form data to get Category, Author and Item.
         const { category, author, item } = req.body;
-
 
         if (!category || !author || item === undefined) {
             return res.status(400).send("Invalid input data");
@@ -456,36 +446,43 @@ app.post("/remove", verifyToken, async (req, res) => {
 
 app.get("/collections/:author", async (req, res) => {
     try {
-        await connectToDatabase();
         const author = req.params.author;
-        const collections = await Collection.find({ author: author });
 
-        if (!collections || collections.length === 0) {
-            return res.status(404).json({ message: "No collections found" });
+        const { data: collection, error } = await supabase
+            .from('collections')
+            .select('*')
+            .eq('author', author)
+
+        if (error) {
+            console.error("Error fetching collection from Supabase:", error);
+            return res.status(404).json({ error: "Collection not found" });
         }
 
-        res.status(200).json(collections);
-    } catch (error) {
+        res.status(200).json(collection);
+    }
+    catch (error) {
         console.error("Error fetching collections:", error);
         res.status(500).json({ message: "Error fetching collections" });
     }
 });
 
-app.get("/collectionId/:author/:collectionName", async (req, res) => {
+app.get("/collection/:author/:collectionName", async (req, res) => {
+    console.log("Fetching collection with author and name:", req.params.author, req.params.collectionName);
     try {
-        await connectToDatabase();
-
         const author = req.params.author;
         const collectionName = req.params.collectionName;
 
         const slug = slugify(author + "/" + collectionName);
 
+        const { data: collection, error } = await supabase
+            .from('collections')
+            .select('*')
+            .eq('slug', slug)
+            .single();
 
-        console.log("finding collection with slug:", slug);
-        const collection = await Collection.findOne({ slug: slug });
-
-        if (!collection) {
-            return res.status(404).json({ message: "Collection not found" });
+        if (error) {
+            console.error("Error fetching collection from Supabase:", error);
+            return res.status(404).json({ error: "Collection not found" });
         }
 
         res.status(200).json(collection);
@@ -498,12 +495,20 @@ app.get("/collectionId/:author/:collectionName", async (req, res) => {
 app.get("/collection/:id", async (req, res) => {
     console.log("Fetching collection with ID:", req.params.id);
     try {
-        await connectToDatabase();
         const collectionId = req.params.id;
-        const collection = await Collection.findById(collectionId);
 
-        if (!collection) {
-            return res.status(404).json({ message: "Collection not found" });
+        console.log("Fetching collection with ID:", collectionId);
+
+        // get data from supabase
+        const { data: collection, error } = await supabase
+            .from('collections')
+            .select('*')
+            .eq('id', collectionId)
+            .single();
+
+        if (error) {
+            console.error("Error fetching collection from Supabase:", error);
+            return res.status(404).json({ error: "Collection not found" });
         }
 
         res.status(200).json(collection);
@@ -516,6 +521,8 @@ app.get("/collection/:id", async (req, res) => {
 app.get("/image/:id", async (req, res) => {
     try {
         const { id } = req.params;
+
+        console.log("fetching image with ID:", id);
 
         // If you're using the image filename or path as the ID, you can directly use it
         const filePath = `uploads/${id}`;  // Assuming images are in the 'uploads' folder in Supabase bucket
