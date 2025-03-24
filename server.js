@@ -2,11 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
-import sharp from 'sharp';
 import Collection from './models/Collection.js';
 import User from './models/User.js';
 import jwt from 'jsonwebtoken';
-import { GridFSBucket } from 'mongodb';
+import { createClient } from '@supabase/supabase-js'; // Ensure you have this file to initialize your Supabase client
 
 dotenv.config();
 
@@ -31,16 +30,7 @@ const connectToDatabase = async () => {
 
 const conn = mongoose.createConnection(process.env.MONGO_URI);
 
-// // Initialize GridFSBucket
-// let gfs;
-
-// conn.once('open', () => {
-//     const bucket = new mongoose.mongo.GridFSBucket(conn.db, {
-//         bucketName: 'uploads'  // Specify your collection name (can be 'uploads' or any other)
-//     });
-//     gfs = bucket;
-//     console.log('GridFSBucket Initialized');
-// });
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 const slugify = (text) => {
     //replace spaces with hyphens, convert to lowercase, remove all special characters except / and -
@@ -56,35 +46,44 @@ const base64ToBuffer = (base64String) => {
 };
 
 const saveImageToDB = (imageBuffer, filename) => {
+    return new Promise(async (resolve, reject) => {
+        try {
+            // Check if the file already exists in the Supabase storage
+            const { data: existingFiles, error: listError } = await supabase
+                .storage
+                .from('uploads') // 'uploads' is your Supabase bucket name
+                .list('', { search: filename, limit: 1 });
 
-    return new Promise((resolve, reject) => {
-        // Create a GridFSBucket stream
-        const bucket = new GridFSBucket(conn.db, { bucketName: 'uploads' });
+            if (listError) {
+                console.error("Error checking file existence:", listError);
+                return reject(listError);
+            }
 
-        // if the bucket already has a file with the same name, return early
-        const existingFile = bucket.find({ filename }).toArray();
+            if (existingFiles.length > 0) {
+                console.log("File with the same name already exists:", filename);
+                return reject("File with the same name already exists");
+            }
 
-        if (existingFile.length > 0) {
-            console.log("File with the same name already exists:", filename);
-            return reject("File with the same name already exists");
-        }
+            // Upload the file to Supabase Storage
+            const { data, error: uploadError } = await supabase
+                .storage
+                .from('uploads') // Your Supabase bucket name
+                .upload(filename, imageBuffer, {
+                    contentType: 'image/jpeg', // Define the MIME type of the image
+                    upsert: false // Prevent overwriting existing files with the same name
+                });
 
-        const uploadStream = bucket.openUploadStream(filename, {
-            contentType: 'image/jpeg',  // Define the MIME type of the image
-        });
+            if (uploadError) {
+                console.error("Error uploading image to Supabase:", uploadError);
+                return reject(uploadError);
+            }
 
-        uploadStream.on('finish', () => {
             console.log("Upload finished.");
-            resolve(uploadStream.id);  // The uploaded file's _id is available here
-        });
-
-        uploadStream.on('error', (err) => {
-            console.error('Error uploading image to GridFS:', err);
+            resolve(data);  // 'data' contains the file information, like file name and public URL
+        } catch (err) {
+            console.error("Error uploading image:", err);
             reject(err);
-        });
-
-        // Pipe the image buffer into the GridFS bucket's upload stream
-        uploadStream.end(imageBuffer);
+        }
     });
 };
 
@@ -162,7 +161,7 @@ app.post("/login", async (req, res) => {
 
         // if username is not null, find user by username, otherwise find by email
         let user;
-        if(email !== "") {
+        if (email !== "") {
             user = await User.findOne({ email });
         } else {
             user = await User.findOne({ username });
@@ -236,7 +235,7 @@ app.delete("/deleteAccount", verifyToken, async (req, res) => {
         res.status(200).json({ message: "User deleted successfully" });
     } catch (error) {
         console.error("Error deleting user:", error);
-        res.status(500).json({message: "Error deleting user"})
+        res.status(500).json({ message: "Error deleting user" })
     }
 });
 
@@ -415,7 +414,7 @@ app.post("/edit", verifyToken, async (req, res) => {
     try {
         await connectToDatabase();
         console.log("Editing item...");
-        const { collection, id, answer} = req.body;
+        const { collection, id, answer } = req.body;
         const collections = await Collection.findOne({ category: collection });
         if (!collections) {
             return res.status(404).json({ message: "Collection not found" });
@@ -475,13 +474,13 @@ app.get("/collections/:author", async (req, res) => {
 app.get("/collectionId/:author/:collectionName", async (req, res) => {
     try {
         await connectToDatabase();
-        
+
         const author = req.params.author;
         const collectionName = req.params.collectionName;
 
         const slug = slugify(author + "/" + collectionName);
 
-        
+
         console.log("finding collection with slug:", slug);
         const collection = await Collection.findOne({ slug: slug });
 
@@ -490,7 +489,7 @@ app.get("/collectionId/:author/:collectionName", async (req, res) => {
         }
 
         res.status(200).json(collection);
-    } catch (error){
+    } catch (error) {
         console.error("Error fetching collection:", error);
         res.status(500).json({ message: "Error fetching collection" });
     }
@@ -516,26 +515,27 @@ app.get("/collection/:id", async (req, res) => {
 
 app.get("/image/:id", async (req, res) => {
     try {
-        await connectToDatabase();
-        // Validate ObjectId before using it
-        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-            console.error("Invalid ObjectId:", req.params.id);
-            return res.status(400).json({ error: "Invalid image ID" });
+        const { id } = req.params;
+
+        // If you're using the image filename or path as the ID, you can directly use it
+        const filePath = `uploads/${id}`;  // Assuming images are in the 'uploads' folder in Supabase bucket
+
+        // Retrieve the file from Supabase Storage
+        const { data, error } = await supabase
+            .storage
+            .from('uploads')  // 'uploads' is your Supabase bucket name
+            .download(filePath);
+
+        if (error) {
+            console.error("Error fetching image from Supabase:", error);
+            return res.status(404).json({ error: "Image not found" });
         }
 
-        const db = mongoose.connection.db;
-        const gfs = new GridFSBucket(db, { bucketName: 'uploads' });
+        // Set the correct MIME type (assuming you're serving image/jpeg)
+        res.setHeader('Content-Type', 'image/jpeg');
 
-        const fileId = new mongoose.Types.ObjectId(req.params.id);
-        const downloadStream = await gfs.openDownloadStream(fileId);
-
-        // Handle errors from GridFS stream
-        downloadStream.on("error", (err) => {
-            console.error("GridFS Stream Error:", err);
-            res.status(404).json({ error: "Image not found or corrupted" });
-        });
-
-        downloadStream.pipe(res);
+        // Pipe the file stream to the response
+        data.pipe(res);
     } catch (error) {
         console.error("Error fetching image:", error);
         res.status(500).json({ error: "Internal server error" });
