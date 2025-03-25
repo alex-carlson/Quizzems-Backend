@@ -60,3 +60,18 @@ export const createNewCollection = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
+
+export const deleteCollection = async (req, res) => {
+    try {
+        const { username, category } = req.params;
+        const { data, error } = await supabase.from('collections').delete().eq('category', category).eq('author', username);
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
