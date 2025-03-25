@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import userRoutes from './users.js';
 import collectionRoutes from './collections.js';
+import itemRoutes from './items.js';
 
 const router = Router();
 
-router.use('/users', userRoutes);
+// Mount sub-routers
 router.use('/collections', collectionRoutes); // Add collections route
-router.use('/collections/:username/:collectionName', collectionRoutes); // Add user collection route
-router.use('/:username/collections', collectionRoutes); // Add all user collections route
-
+router.use('/users', userRoutes);
+router.use('/items', itemRoutes);
 export default router;

@@ -1,11 +1,17 @@
 import { Router } from 'express';
-import { getAllCollections, getUserCollection, getAllUserCollections } from '../controllers/collectionsController.js';
+import {
+    getAllCollections,
+    getUserCollection,
+    getAllUserCollections,
+    createNewCollection
+} from '../controllers/collectionsController.js';
 import authenticateToken from '../middleware/authMiddleware.js';
 
 const router = Router();
 
-router.get('/', getAllCollections);
-router.get('/:username/:collectionId', getUserCollection);
-router.get('/:username/collections', authenticateToken, getAllUserCollections);
+router.get('/:username/all-collections', getAllUserCollections);
+router.get('/:username/:collection', getUserCollection);
+router.post('/createCollection', authenticateToken, createNewCollection);
+router.get('/', getAllCollections); // Static route goes last
 
 export default router;
