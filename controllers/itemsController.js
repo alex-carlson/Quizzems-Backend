@@ -90,3 +90,34 @@ export const RemoveItemFromCollection = async (req, res) => {
         res.status(500).json({ error: "Internal Server Error", details: err.message });
     }
 };
+
+export const EditItemInCollection = async (req, res) => {
+    try {
+        const { collection, answer, image } = req.body;
+
+        // find the entry with the matching image and update the text
+        if (!collection || !answer || !image) {
+            return res.status(400).json({ error: "Missing required fields" });
+        }
+
+        const { data, error } = await supabase
+            .from("collections")
+            .select("items")
+            .eq("category", collection)
+            .eq("items:image", image)
+            // update the answer field
+            .update({ "items:answer": answer })
+            .single();
+
+        if (error) {
+            console.error("Error updating collection:", error);
+            return res.status(500).json({ error: "Failed to update collection", details: error });
+        }
+
+        res.status(200).json(data);
+    }
+    catch (err) {
+        console.error("Unexpected error:", err);
+        res.status(500).json({ error: "Internal Server Error", details: err.message });
+    }
+};
