@@ -2,7 +2,10 @@ import supabase from '../config/supabaseClient.js';
 
 export const getAllCollections = async (req, res) => {
     try {
-        const { data, error } = await supabase.from('collections').select('*');
+        const { data, error } = await supabase
+            .from('collections')
+            .select('*')
+            .eq('private', false);
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -32,7 +35,7 @@ export const getUserCollection = async (req, res) => {
 export const getAllUserCollections = async (req, res) => {
     try {
         const { username } = req.params;
-        const { data, error } = await supabase.from('collections').select('*').eq('author', username);
+        const { data, error } = await supabase.from('collections').select('*').eq('author', username).eq('private', false);
 
         if (error) {
             return res.status(500).json({ error: error.message });
