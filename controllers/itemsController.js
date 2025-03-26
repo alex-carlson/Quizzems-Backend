@@ -13,6 +13,7 @@ export const AddItemToCollection = async (req, res) => {
         }
 
         const myItem = {
+            id: item.id || null,
             image: item.image || null,
             answer: item.name || null
         };
@@ -93,10 +94,10 @@ export const RemoveItemFromCollection = async (req, res) => {
 
 export const EditItemInCollection = async (req, res) => {
     try {
-        const { collection, answer, image } = req.body;
+        const { collection, id, answer } = req.body;
 
         // find the entry with the matching image and update the text
-        if (!collection || !answer || !image) {
+        if (!collection || !id || !answer) {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
@@ -104,17 +105,30 @@ export const EditItemInCollection = async (req, res) => {
             .from("collections")
             .select("items")
             .eq("category", collection)
-            .eq("items:image", image)
-            // update the answer field
-            .update({ "items:answer": answer })
             .single();
 
         if (error) {
             console.error("Error updating collection:", error);
             return res.status(500).json({ error: "Failed to update collection", details: error });
-        }
+        } else {
+            let items = data.items;
 
-        res.status(200).json(data);
+            items = items.map(item =>
+                item.id === id ? { ...item, answer } : item
+            );
+
+            const { error: updateError } = await supabase
+                .from("collections")
+                .update({ items })
+                .eq("category", collection)
+
+            if (updateError) {
+                console.error("Error updating collection:", updateError);
+                return res.status(500).json({ error: "Failed to update collection", details: updateError });
+            } else {
+                res.status(200).json({ message: "Item updated successfully" });
+            }
+        }
     }
     catch (err) {
         console.error("Unexpected error:", err);

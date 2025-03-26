@@ -32,6 +32,21 @@ export const getUserCollection = async (req, res) => {
     }
 };
 
+export const getUserCollections = async (req, res) => {
+    try {
+        const { username } = req.params;
+        const { data, error } = await supabase.from('collections').select('*').eq('author', username);
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
 export const getAllUserCollections = async (req, res) => {
     try {
         const { username } = req.params;
@@ -64,6 +79,25 @@ export const createNewCollection = async (req, res) => {
     }
 };
 
+export const renameCollection = async (req, res) => {
+    try {
+        const { oldCategory, newCategory } = req.body;
+
+        console.log("Changing name from " + oldCategory + " to " + newCategory);
+
+        // use supabase to find collection with oldName and change the collection name to newName
+        const { data, error } = await supabase.from('collections').update({ category: newCategory }).eq('category', oldCategory).select();
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
 export const deleteCollection = async (req, res) => {
     try {
         const { username, category } = req.params;
@@ -78,3 +112,26 @@ export const deleteCollection = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
+
+export const setVisible = async (req, res) => {
+    try {
+        const { category, author, visible } = req.body;
+
+        console.log("Setting visibility of " + category + " to " + visible);
+
+        const { data, error } = await supabase
+            .from('collections')
+            .update({ private: !visible })
+            .eq('category', category)
+            .eq('author', author)
+            .select('*');
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+}
