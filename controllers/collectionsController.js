@@ -17,10 +17,45 @@ export const getAllCollections = async (req, res) => {
     }
 };
 
+export const getUserCollectionById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { data, error } = await supabase
+            .from('collections')
+            .select('*')
+            .eq("id", id)
+            .single();
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+
+        res.status(200).json(data);
+    } catch (err) {
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
 export const getUserCollection = async (req, res) => {
     try {
         const { username, collection } = req.params;
         const { data, error } = await supabase.from('collections').select('*').eq('category', collection).eq('author', username).single();
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const getPublicUserCollection = async (req, res) => {
+    try {
+        const { username, collection } = req.params;
+        console.log("Getting public collection " + collection + " from " + username);
+        const { data, error } = await supabase.from('collections').select('*').eq('category', collection).eq('author', username).eq('private', false).single();
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -50,6 +85,7 @@ export const getUserCollections = async (req, res) => {
 export const getAllUserCollections = async (req, res) => {
     try {
         const { username } = req.params;
+        console.log("Getting all collections from " + username);
         const { data, error } = await supabase.from('collections').select('*').eq('author', username).eq('private', false);
 
         if (error) {
@@ -66,8 +102,8 @@ export const createNewCollection = async (req, res) => {
     try {
         console.log('createNewCollection');
         console.log(req.body);
-        const { category, author } = req.body;
-        const { data, error } = await supabase.from('collections').insert([{ category, author }]).select();
+        const { category, username } = req.body;
+        const { data, error } = await supabase.from('collections').insert([{ category, author: username, items: [], private: Boolean(true) }]).select();
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -100,8 +136,9 @@ export const renameCollection = async (req, res) => {
 
 export const deleteCollection = async (req, res) => {
     try {
-        const { username, category } = req.params;
-        const { data, error } = await supabase.from('collections').delete().eq('category', category).eq('author', username);
+        const { username, collection } = req.params;
+        console.log("Deleting collection " + collection + " from " + username);
+        const { data, error } = await supabase.from('collections').delete().eq('category', collection).eq('author', username);
 
         if (error) {
             return res.status(500).json({ error: error.message });

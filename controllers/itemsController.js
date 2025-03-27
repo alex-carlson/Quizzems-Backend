@@ -54,9 +54,11 @@ export const AddItemToCollection = async (req, res) => {
 
 export const RemoveItemFromCollection = async (req, res) => {
     try {
-        const { category, itemAnswer } = req.body;
+        const { category, itemId } = req.body;
 
-        if (!category || !itemAnswer) {
+        console.log("Removing item from collection:", category, itemId);
+
+        if (!category || !itemId) {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
@@ -71,7 +73,7 @@ export const RemoveItemFromCollection = async (req, res) => {
             return res.status(500).json({ error: "Failed to fetch collection", details: fetchError });
         }
 
-        const updatedItems = collection.items.filter((i) => i.answer !== itemAnswer);
+        const updatedItems = collection.items.filter((i) => i.id !== itemId);
 
         const { data, error } = await supabase
             .from("collections")
