@@ -47,3 +47,35 @@ export const loginUser = (req, res) => {
         return res.status(200).json({ user, token });
     });
 };
+
+export const forgotPassword = (req, res) => {
+    const { email } = req.body;
+
+    if (!email) {
+        return res.status(400).json({ error: 'Email is required' });
+    }
+
+    User.forgotPassword(email, (error, data) => {
+        if (error) {
+            return res.status(400).json({ error: 'Password reset could not be initiated' });
+        }
+
+        return res.status(200).json({ message: 'Password reset initiated' });
+    });
+}
+
+export const resetPassword = (req, res) => {
+    const { email, password, token } = req.body;
+
+    if (!email) {
+        return res.status(400).json({ error: 'Email is required' });
+    }
+
+    return User.resetPassword(email, password, token, (error, data) => {
+        if (error) {
+            return res.status(400).json({ error: 'Password reset could not be completed' });
+        }
+
+        return res.status(200).json({ message: 'Password reset completed' });
+    });
+}

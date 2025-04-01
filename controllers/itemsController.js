@@ -2,20 +2,20 @@ import supabase from "../config/supabaseClient.js";
 
 export const AddItemToCollection = async (req, res) => {
     try {
-        const { category, author, item } = req.body;
 
-        if (!category || !author || !item) {
+        console.log("Image URL in AddItemToCollection:", req.uploadedImageUrl);
+
+
+        const { category, author, uuid, answer } = req.body;
+
+        if (!category || !author || !req.uploadedImageUrl) {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
-        if (req.uploadedImageUrl) {
-            item.image = req.uploadedImageUrl;
-        }
-
         const myItem = {
-            id: item.id || null,
-            image: item.image || null,
-            answer: item.name || null
+            id: uuid || null,
+            image: req.uploadedImageUrl || null,
+            answer: answer || null
         };
 
         // Check if `items` column is NULL and initialize it if needed

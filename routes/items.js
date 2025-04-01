@@ -1,11 +1,16 @@
 import { Router } from 'express';
 import authenticateToken from '../middleware/authMiddleware.js';
-import uploadBase64ToSupabase from '../middleware/uploadBase64ToSupabase.js';
 import { AddItemToCollection, RemoveItemFromCollection, EditItemInCollection } from '../controllers/itemsController.js';
-
+import { upload, UploadToSupabase } from '../middleware/multer.js';
 const router = Router();
 
-router.post('/upload', authenticateToken, uploadBase64ToSupabase, AddItemToCollection);
+router.post(
+    '/upload',
+    authenticateToken,
+    upload.single('file'),
+    UploadToSupabase,
+    AddItemToCollection
+);
 router.post('/remove', authenticateToken, RemoveItemFromCollection);
 router.post('/edit', authenticateToken, EditItemInCollection)
 

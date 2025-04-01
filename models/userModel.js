@@ -1,5 +1,6 @@
 import supabase from '../config/supabaseClient.js';
 import bcrypt from 'bcryptjs';
+import nodemailer from 'nodemailer';
 
 class User {
     constructor(username, email, password) {
@@ -54,6 +55,69 @@ class User {
                     .catch(err => callback(err, null));
             })
             .catch(err => callback(err, null));
+    }
+
+    // Forgot password (Send reset link to email)
+    static forgotPassword(email, callback) {
+        // Generate reset token
+        const resetToken = Math.random().toString(36).substring(2, 15);
+
+        // Update user with reset token
+        supabase
+            .from('users')
+            .update({ resetToken })
+            .eq('email', email)
+            .then(({ error }) => {
+                if (error) return callback(error, null);
+
+                const transporter = nodemailer.createTransport({
+                    service: 'gmail',
+                    auth: {
+                        user: process.env.EMAIL_USER,
+                        pass: process.env.EMAIL_PASS
+                    }
+                });
+
+                const mailOptions = {
+                    from: process.env.EMAIL_USER,
+                    to: email,
+                    subject: 'Password Reset',
+                    text: `Click the link to reset your password: ${process.env.CLIENT_URL}/reset-password?email=${email}&token=${resetToken}`
+                };
+
+                transporter.sendMail(mailOptions, (error, info) => {
+                    if (error) {
+                        console.log('Error sending email:', error);
+                        return callback(error, null);
+                    }
+
+                    console.log('Email sent:', info.response);
+                });
+
+                callback(null, 'Password reset initiated');
+            })
+            .catch(err => callback(err, null));
+    }
+
+    // Reset password (Update user password)
+    static resetPassword(email, password, token, callback) {
+        // Hash new password
+        bcrypt.hash(password, 10).then((hashedPassword) => {
+            // Update user password
+            supabase
+                .from('users')
+                .update({ password: hashedPassword, resetToken: null })
+                .eq('email', email)
+                .eq('resetToken', token)
+                .then(({ error }) => {
+                    if (error) return callback(error, null);
+
+                    callback(null, 'Password reset completed');
+                })
+                .catch(err => callback(err, null));
+        }).catch((error) => {
+            callback(error, null);
+        });
     }
 }
 
