@@ -64,6 +64,8 @@ class User {
             // Generate reset token
             const resetToken = Math.random().toString(36).substring(2, 15);
 
+            console.log("Resetting password for user:", email);
+
             const { error } = await supabase
                 .from('users')
                 .update({ resetToken })
