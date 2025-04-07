@@ -142,16 +142,40 @@ export const EditItemInCollection = async (req, res) => {
 
 export const ReorderItemInCollection = async (req, res) => {
     try {
-        const { collection, items } = req.body;
+        console.log("Reordering items in collection:", req.body);
+        const { category, itemAnswers } = req.body;
 
-        if (!collection || !items) {
+        if (!category || !itemAnswers) {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
+        // sort supabase category items array to match the order of itemAnswers
+        const { data: collection, error: fetchError } = await supabase
+            .from("collections")
+            .select("items")
+            .eq("category", category)
+            .single();
+
+        if (fetchError) {
+            console.error("Error fetching collection:", fetchError);
+            return res.status(500).json({ error: "Failed to fetch collection", details: fetchError });
+        }
+
+        // create a map of itemAnswers to their index
+        const itemAnswersMap = {};
+        itemAnswers.forEach((item, index) => {
+            itemAnswersMap[item.id] = index;
+        });
+
+        // sort the collection items based on the itemAnswers order
+        const updatedItems = collection.items.sort((a, b) => {
+            return (itemAnswersMap[a.id] || 0) - (itemAnswersMap[b.id] || 0);
+        });
+
         const { data, error } = await supabase
             .from("collections")
-            .update({ items })
-            .eq("category", collection)
+            .update({ items: updatedItems })
+            .eq("category", category)
             .select();
 
         if (error) {
