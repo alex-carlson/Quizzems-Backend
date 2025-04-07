@@ -137,3 +137,31 @@ export const EditItemInCollection = async (req, res) => {
         res.status(500).json({ error: "Internal Server Error", details: err.message });
     }
 };
+
+// reorder item in collection
+
+export const ReorderItemInCollection = async (req, res) => {
+    try {
+        const { collection, items } = req.body;
+
+        if (!collection || !items) {
+            return res.status(400).json({ error: "Missing required fields" });
+        }
+
+        const { data, error } = await supabase
+            .from("collections")
+            .update({ items })
+            .eq("category", collection)
+            .select();
+
+        if (error) {
+            console.error("Error updating collection:", error);
+            return res.status(500).json({ error: "Failed to update collection", details: error });
+        }
+
+        res.status(200).json(data);
+    } catch (err) {
+        console.error("Unexpected error:", err);
+        res.status(500).json({ error: "Internal Server Error", details: err.message });
+    }
+}
