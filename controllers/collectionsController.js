@@ -17,6 +17,30 @@ export const getAllCollections = async (req, res) => {
     }
 };
 
+export const getLatestCollections = async (req, res) => {
+    try {
+        
+        const max = 10;
+
+        // get 10 collections from database, ordered by created_at desc
+        const { data, error } = await supabase
+            .from('collections')
+            .select('*')
+            .eq('private', false)
+            .order('created_at', { ascending: false })
+            .limit(max);
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+
+        res.json(data);
+
+    } catch (err) {
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
 export const getUserCollectionById = async (req, res) => {
     try {
         const { id } = req.params;
