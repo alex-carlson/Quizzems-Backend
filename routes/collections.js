@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
     getAllCollections,
     getLatestCollections,
+    searchCollections,
     getUserCollectionById,
     getUserCollections,
     getAllUserCollections,
@@ -28,6 +29,7 @@ router.post('/renameCollection', authenticateToken, renameCollection);
 router.post('/setVisible', authenticateToken, setVisible);
 
 router.get('/latest', getLatestCollections);
+router.get('/search', searchCollections);
 
 router.get('/', getAllCollections); // Static route goes last
 

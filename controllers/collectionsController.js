@@ -19,7 +19,7 @@ export const getAllCollections = async (req, res) => {
 
 export const getLatestCollections = async (req, res) => {
     try {
-        
+
         const max = 10;
 
         // get 10 collections from database, ordered by created_at desc
@@ -40,6 +40,49 @@ export const getLatestCollections = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
+
+export const searchCollections = async (req, res) => {
+    try {
+        const { searchTerm } = req.query;
+
+        // Step 1: Get matching results
+        const { data: matching, error: matchError } = await supabase
+            .from('collections')
+            .select('*')
+            .or(`category.ilike.%${searchTerm}%,author.ilike.%${searchTerm}%`)
+            .eq('private', false);
+
+        if (matchError) {
+            return res.status(500).json({ error: matchError.message });
+        }
+
+        // If 10 or more results found, return them
+        if (matching.length >= 10) {
+            return res.json(matching.slice(0, 10));
+        }
+
+        // Step 2: Fetch additional non-matching results to fill to 10
+        const excludeIds = matching.map(item => item.id); // assume you have `id` field
+
+        const { data: filler, error: fillerError } = await supabase
+            .from('collections')
+            .select('*')
+            .eq('private', false)
+            .not('id', 'in', `(${excludeIds.join(',')})`)
+            .limit(10 - matching.length);
+
+        if (fillerError) {
+            return res.status(500).json({ error: fillerError.message });
+        }
+
+        // Combine search results with filler and send
+        const combined = [...matching, ...filler];
+        res.json(combined);
+    } catch (err) {
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
 
 export const getUserCollectionById = async (req, res) => {
     try {
