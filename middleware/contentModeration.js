@@ -65,8 +65,6 @@ const checkContent = async (imageUrl, filePath, res) => {
             console.error("Image contains inappropriate content:", result);
             return res.status(400).json({ message: 'Image contains illicit content' });
         }
-
-        console.log("Image passed content moderation:", result);
         return true; // Indicate that the image is safe
     } catch (err) {
         console.error("Error during content moderation:", err.response?.data || err.message);
