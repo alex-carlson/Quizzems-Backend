@@ -2,6 +2,7 @@ import { Router } from 'express';
 import authenticateToken from '../middleware/authMiddleware.js';
 import { AddItemToCollection, RemoveItemFromCollection, EditItemInCollection, ReorderItemInCollection } from '../controllers/itemsController.js';
 import { upload, UploadToSupabase } from '../middleware/multer.js';
+import { contentModeration } from '../middleware/contentModeration.js';
 const router = Router();
 
 router.post(
@@ -9,6 +10,7 @@ router.post(
     authenticateToken,
     upload.single('file'),
     UploadToSupabase,
+    contentModeration,
     AddItemToCollection
 );
 router.post('/remove', authenticateToken, RemoveItemFromCollection);
