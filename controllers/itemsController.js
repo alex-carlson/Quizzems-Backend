@@ -75,6 +75,16 @@ export const RemoveItemFromCollection = async (req, res) => {
 
         const updatedItems = collection.items.filter((i) => i.id !== itemId);
 
+        // also delete the image from storage
+
+        const { error: deleteError } = await supabase.storage
+            .from("uploads")
+            .remove([`uploads/${category}/${itemId}`]);
+        if (deleteError) {
+            console.error("Error deleting image from storage:", deleteError);
+            return res.status(500).json({ error: "Failed to delete image from storage", details: deleteError });
+        }
+
         const { data, error } = await supabase
             .from("collections")
             .update({ items: updatedItems })
