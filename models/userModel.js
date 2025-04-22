@@ -36,24 +36,20 @@ class User {
         // Check if identifier is email or username
         const queryField = identifier.includes('@') ? 'email' : 'username';
 
-        console.log("Logging in user:", identifier, "with field:", queryField);
-
         // Fetch user from Supabase
         supabase
             .from('users')
-            .select('username, email, password') // Ensure password is included for comparison
-            .ilike(queryField, identifier) // Use ilike for case-insensitive comparison
+            .select('id, username, email, password') // Ensure password is included for comparison
+            .eq(queryField, identifier)
             .single()
             .then(({ data, error }) => {
                 if (error || !data) return callback(new Error('Invalid username or email'), null);
-
-                console.log("found a user, checking password");
 
                 // Compare password
                 bcrypt.compare(password, data.password)
                     .then(isMatch => {
                         if (!isMatch) return callback(new Error('Invalid credentials'), null);
-                        console.log("Password matched, returning user data");
+
                         // Return username
                         callback(null, data.username);
                     })
@@ -132,49 +128,6 @@ class User {
             callback(error, null);
         });
     }
-
-    // Get user by ID
-    static getUser(id, callback) {
-        // return user email and username from supabase where id matches username
-        supabase
-            .from('users')
-            .select('email, username')
-            .eq('username', id)
-            .single()
-            .then(({ data, error }) => {
-                if (error) return callback(error, null);
-
-                callback(null, data);
-            })
-            .catch(err => callback(err, null));
-    }
-
-    static async changeUsername(email, newUsername, oldUsername, callback) {
-        try {
-            // Update user username
-            const { error: userError } = await supabase
-                .from('users')
-                .update({ username: newUsername })
-                .ilike('email', email)
-                .eq('username', oldUsername);
-
-            if (userError) return callback(userError, null);
-
-            // Update collections authored by user
-            const { error: collectionError } = await supabase
-                .from('collections')
-                .update({ author: newUsername })
-                .ilike('author', oldUsername);
-
-            if (collectionError) return callback(collectionError, null);
-
-            // All good
-            callback(null, 'Username changed successfully');
-        } catch (err) {
-            callback(err, null);
-        }
-    }
-
 }
 
 export default User;

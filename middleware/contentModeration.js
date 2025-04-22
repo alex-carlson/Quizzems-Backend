@@ -1,30 +1,10 @@
 //import axios
 import axios from "axios";
-import { supabase } from "../supabaseClient.js";
 
 export const contentModeration = async (req, res, next) => {
-    console.log(req);
-    // if user is whitelisted, skip content moderation
-    if (req.user) {
-        // check supabase users to see if this user is whitelisted
-        const { data: user, error } = await supabase
-            .from("users")
-            .select("whitelisted")
-            .eq("username", req.user.user)
-            .single();
-
-        if (error) {
-            console.error("Error fetching user:", error);
-            return res.status(500).json({ message: "Internal Server Error", details: error.message });
-        }
-
-        if (user && user.whitelist === true) {
-            console.log("User is whitelisted, skipping content moderation.");
-            return next();
-        }
-    }
     console.log("🚀 Content Moderation Middleware Triggered");
     try {
+        console.log(req);
 
         // store req.uploadedImageUrl
         const uploadedImageUrl = req.uploadedImageUrl || req.body.uploadedImageUrl;

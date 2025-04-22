@@ -30,8 +30,6 @@ export const createUser = (req, res) => {
 export const loginUser = (req, res) => {
     const { email, username, password } = req.body;
 
-    console.log("Logging in with info: ", email, username, password);
-
     if (!email && !username) {
         return res.status(400).json({ error: 'Email or username is required' });
     }
@@ -79,49 +77,5 @@ export const resetPassword = (req, res) => {
         }
 
         return res.status(200).json({ message: 'Password reset completed' });
-    });
-}
-
-export const getUser = (req, res) => {
-    const { id } = req.params;
-
-    console.log("Fetching user with ID:", id);
-
-    if (!id) {
-        return res.status(400).json({ error: 'User ID is required' });
-    }
-
-    User.getUser(id, (error, user) => {
-        if (error) {
-            return res.status(400).json({ error: 'User not found' });
-        }
-
-        return res.status(200).json({ user });
-    });
-};
-
-export const changeUsername = (req, res) => {
-    const { newUsername, email, oldUsername } = req.body;
-
-    console.log("Changing username for user:", email, oldUsername, newUsername);
-
-    if (!email) {
-        return res.status(400).json({ error: 'Email is required' });
-    }
-
-    if (!newUsername) {
-        return res.status(400).json({ error: 'New username is required' });
-    }
-
-    if (!oldUsername) {
-        return res.status(400).json({ error: 'Old username is required' });
-    }
-
-    User.changeUsername(email, newUsername, oldUsername, (error, data) => {
-        if (error) {
-            return res.status(400).json({ error: 'Username change failed' });
-        }
-
-        return res.status(200).json({ message: 'Username changed successfully' });
     });
 }
