@@ -10,7 +10,6 @@ router.post(
     authenticateToken,
     upload.single('file'),
     UploadToSupabase,
-    contentModeration,
     AddItemToCollection
 );
 router.post('/remove', authenticateToken, RemoveItemFromCollection);
