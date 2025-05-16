@@ -167,15 +167,15 @@ export const getAllUserCollections = async (req, res) => {
 
 export const createNewCollection = async (req, res) => {
     try {
-        const { category, username } = req.body;
-        const { data, error } = await supabase.from('collections').insert([{ category, author: username, items: [], private: Boolean(true) }]).select();
+        const { category, author_id, author } = req.body;
+        const { data, error } = await supabase.from('collections').insert([{ category, author, author_id, items: [], private: Boolean(true) }]).select();
 
         if (error) {
             return res.status(500).json({ error: error.message });
         }
 
         // if category or username is null, return 400
-        if (!category || !username) {
+        if (!category || !author || !author_id) {
             return res.status(400).json({ error: 'Bad Request' });
         }
 
