@@ -1,36 +1,48 @@
 import { Router } from 'express';
 import {
-    getAllCollections,
-    getLatestCollections,
-    searchCollections,
-    getUserCollectionById,
-    getUserCollections,
-    getAllUserCollections,
-    createNewCollection,
-    getPublicUserCollection,
-    renameCollection,
-    deleteCollection,
-    setVisible
+  getAllCollections,
+  getLatestCollections,
+  searchCollections,
+  getUserCollectionById,
+  getUserCollections,
+  getAllUserCollections,
+  createNewCollection,
+  getPublicUserCollection,
+  renameCollection,
+  deleteCollection,
+  setVisible
 } from '../controllers/collectionsController.js';
-import authenticateToken from '../middleware/authMiddleware.js';
+import verifySupabaseToken from '../middleware/supabaseAuth.js';
 
 const router = Router();
 
-router.delete('/:username/:collection', authenticateToken, deleteCollection);
+// DELETE collection (protected)
+router.delete('/:uid/:collection', verifySupabaseToken, deleteCollection);
+
+// GET collection by ID (public)
 router.get('/id/:id', getUserCollectionById);
 
-router.get('/user/:username/all', getAllUserCollections);
-router.get('/user/:username/:collection', getPublicUserCollection);
-router.get('/user/:username', authenticateToken, getUserCollections);
+// GET all collections of a user (public - all)
+router.get('/user/:uid/all', getAllUserCollections);
 
+// GET a public user collection
+router.get('/user/:uid/:collection', getPublicUserCollection);
 
-router.post('/createCollection', authenticateToken, createNewCollection);
-router.post('/renameCollection', authenticateToken, renameCollection);
-router.post('/setVisible', authenticateToken, setVisible);
+// GET all collections of a user (protected)
+router.get('/user/:uid', verifySupabaseToken, getUserCollections);
 
+// POST create, rename, set visibility (all protected)
+router.post('/createCollection', verifySupabaseToken, createNewCollection);
+router.post('/renameCollection', verifySupabaseToken, renameCollection);
+router.post('/setVisible', verifySupabaseToken, setVisible);
+
+// GET latest collections (public)
 router.get('/latest', getLatestCollections);
+
+// GET collections by search (public)
 router.get('/search', searchCollections);
 
-router.get('/', getAllCollections); // Static route goes last
+// GET all collections (public, static route)
+router.get('/', getAllCollections);
 
 export default router;

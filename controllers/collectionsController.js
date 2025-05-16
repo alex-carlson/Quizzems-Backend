@@ -120,9 +120,9 @@ export const getUserCollection = async (req, res) => {
 
 export const getPublicUserCollection = async (req, res) => {
     try {
-        const { username, collection } = req.params;
-        console.log("Getting public collection " + collection + " from " + username);
-        const { data, error } = await supabase.from('collections').select('*').eq('category', collection).eq('author', username).eq('private', false).single();
+        const { uid, collection } = req.params;
+        console.log("Getting public collection " + collection + " from " + uid);
+        const { data, error } = await supabase.from('collections').select('*').eq('category', collection).eq('author_id', uid).eq('private', false).single();
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -136,8 +136,8 @@ export const getPublicUserCollection = async (req, res) => {
 
 export const getUserCollections = async (req, res) => {
     try {
-        const { username } = req.params;
-        const { data, error } = await supabase.from('collections').select('*').eq('author', username);
+        const { uid } = req.params;
+        const { data, error } = await supabase.from('collections').select('*').eq('author_id', uid);
 
         if (error) {
             return res.status(500).json({ error: error.message });
