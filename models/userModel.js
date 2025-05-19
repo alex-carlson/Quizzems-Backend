@@ -1,4 +1,4 @@
-import supabase from '../config/supabaseClient.js';
+import {supabase} from '../config/supabaseClient.js';
 import bcrypt from 'bcryptjs';
 import nodemailer from 'nodemailer';
 // import * as googleauth from '../middleware/googleauth.js';

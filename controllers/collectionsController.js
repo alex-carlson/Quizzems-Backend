@@ -1,4 +1,4 @@
-import supabase from '../config/supabaseClient.js';
+import {supabase, getSupabaseClientWithToken} from '../config/supabaseClient.js';
 
 export const getAllCollections = async (req, res) => {
     try {
@@ -6,7 +6,6 @@ export const getAllCollections = async (req, res) => {
             .from('collections')
             .select('*')
             .eq('private', false);
-
         if (error) {
             return res.status(500).json({ error: error.message });
         }
@@ -48,9 +47,9 @@ export const searchCollections = async (req, res) => {
         // Step 1: Get matching results
         const { data: matching, error: matchError } = await supabase
             .from('collections')
+            .eq('private', false)
             .select('*')
-            .or(`category.ilike.%${searchTerm}%,author.ilike.%${searchTerm}%`)
-            .eq('private', false);
+            .or(`category.ilike.%${searchTerm}%,author.ilike.%${searchTerm}%`);
 
         if (matchError) {
             return res.status(500).json({ error: matchError.message });
@@ -67,7 +66,6 @@ export const searchCollections = async (req, res) => {
         const { data: filler, error: fillerError } = await supabase
             .from('collections')
             .select('*')
-            .eq('private', false)
             .not('id', 'in', `(${excludeIds.join(',')})`)
             .limit(10 - matching.length);
 
@@ -87,7 +85,12 @@ export const searchCollections = async (req, res) => {
 export const getUserCollectionById = async (req, res) => {
     try {
         const { id } = req.params;
-        const { data, error } = await supabase
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) {
+            return res.status(401).json({ error: 'No token provided' });
+        }
+        
+        const { data, error } = await getSupabaseClientWithToken(token)
             .from('collections')
             .select('*')
             .eq("id", id)
@@ -121,8 +124,7 @@ export const getUserCollection = async (req, res) => {
 export const getPublicUserCollection = async (req, res) => {
     try {
         const { uid, collection } = req.params;
-        console.log("Getting public collection " + collection + " from " + uid);
-        const { data, error } = await supabase.from('collections').select('*').eq('category', collection).eq('author_id', uid).eq('private', false).single();
+        const { data, error } = await supabase.from('collections').select('*').eq('category', collection).eq('author_id', uid).single();
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -137,7 +139,15 @@ export const getPublicUserCollection = async (req, res) => {
 export const getUserCollections = async (req, res) => {
     try {
         const { uid } = req.params;
-        const { data, error } = await supabase.from('collections').select('*').eq('author_id', uid);
+
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) {
+            return res.status(401).json({ error: 'No token provided' });
+        }
+
+
+
+        const { data, error } = await getSupabaseClientWithToken(token).from('collections').select('*').eq('author_id', uid);
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -153,7 +163,7 @@ export const getAllUserCollections = async (req, res) => {
     try {
         const { username } = req.params;
         console.log("Getting all collections from " + username);
-        const { data, error } = await supabase.from('collections').select('*').eq('author', username).eq('private', false);
+        const { data, error } = await supabase.from('collections').select('*').eq('author', username);
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -167,32 +177,63 @@ export const getAllUserCollections = async (req, res) => {
 
 export const createNewCollection = async (req, res) => {
     try {
-        const { category, author_id, author } = req.body;
-        const { data, error } = await supabase.from('collections').insert([{ category, author, author_id, items: [], private: Boolean(true) }]).select();
 
-        if (error) {
-            return res.status(500).json({ error: error.message });
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) {
+            return res.status(401).json({ error: 'No token provided' });
         }
 
-        // if category or username is null, return 400
+        const { category, author_id, author } = req.body;
+
+        // ✅ Validate required fields first
         if (!category || !author || !author_id) {
-            return res.status(400).json({ error: 'Bad Request' });
+            return res.status(400).json({ error: 'Missing category, author, or author_id' });
+        }
+
+        // make sure jwt token has 3 parts
+        const tokenParts = token.split('.');
+        if (tokenParts.length !== 3) {
+            return res.status(401).json({ error: 'Invalid token format' });
+        }
+
+        // ✅ Proceed with insertion
+        const { data, error } = await getSupabaseClientWithToken(token)
+            .from('collections')
+            .insert([{ 
+                category, 
+                author, 
+                author_id, 
+                items: [], 
+                private: true 
+            }])
+            .select();
+
+        if (error) {
+            console.error('Insert error:', error.message);
+            return res.status(500).json({ error: error.message });
         }
 
         res.status(201).json(data);
     } catch (err) {
+        console.error('Catch error:', err);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
 
+
 export const renameCollection = async (req, res) => {
     try {
         const { oldCategory, newCategory } = req.body;
+        const token = req.headers.authorization?.split(' ')[1];
+
+        if (!token) {
+            return res.status(401).json({ error: 'No token provided' });
+        }
 
         console.log("Changing name from " + oldCategory + " to " + newCategory);
 
         // use supabase to find collection with oldName and change the collection name to newName
-        const { data, error } = await supabase.from('collections').update({ category: newCategory }).eq('category', oldCategory).select();
+        const { data, error } = await getSupabaseClientWithToken(token).from('collections').update({ category: newCategory }).eq('category', oldCategory).select();
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -206,9 +247,19 @@ export const renameCollection = async (req, res) => {
 
 export const deleteCollection = async (req, res) => {
     try {
-        const { username, collection } = req.params;
+        const { collection, author_id, username } = req.body;
+        console.log("delete body: " + req.body);
+
+        // list all the params
         console.log("Deleting collection " + collection + " from " + username);
-        const { data, error } = await supabase.from('collections').delete().eq('category', collection).eq('author', username);
+        console.log("Author ID: " + author_id);
+
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) {
+            return res.status(401).json({ error: 'No token provided' });
+        }
+
+        const { data, error } = await getSupabaseClientWithToken(token).from('collections').delete().eq('category', collection).eq('author_id', author_id);
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -223,10 +274,14 @@ export const deleteCollection = async (req, res) => {
 export const setVisible = async (req, res) => {
     try {
         const { category, author, visible } = req.body;
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) {
+            return res.status(401).json({ error: 'No token provided' });
+        }
 
         console.log("Setting visibility of " + category + " to " + visible);
 
-        const { data, error } = await supabase
+        const { data, error } = await getSupabaseClientWithToken(token)
             .from('collections')
             .update({ private: !visible })
             .eq('category', category)

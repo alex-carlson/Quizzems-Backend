@@ -1,15 +1,17 @@
-import supabase from "../config/supabaseClient.js";
+import {getSupabaseClientWithToken, supabase} from "../config/supabaseClient.js";
 
 export const AddItemToCollection = async (req, res) => {
     try {
 
-        console.log("Image URL in AddItemToCollection:", req.uploadedImageUrl);
-
-
-        const { category, author, uuid, answer } = req.body;
+        const { category, author, uuid, answer, author_id } = req.body;
 
         if (!category || !author || !req.uploadedImageUrl) {
             return res.status(400).json({ error: "Missing required fields" });
+        }
+
+        const token = req.headers.authorization?.split(" ")[1];
+        if (!token) {
+            return res.status(401).json({ error: "No token provided" });
         }
 
         const myItem = {
@@ -19,11 +21,11 @@ export const AddItemToCollection = async (req, res) => {
         };
 
         // Check if `items` column is NULL and initialize it if needed
-        const { data: collection, error: fetchError } = await supabase
+        const { data: collection, error: fetchError } = await getSupabaseClientWithToken(token)
             .from("collections")
             .select("items")
             .eq("category", category)
-            .eq("author", author)
+            .eq("author_id", author_id)
             .single();
 
         if (fetchError) {
@@ -33,11 +35,11 @@ export const AddItemToCollection = async (req, res) => {
 
         const updatedItems = collection.items ? [...collection.items, myItem] : [myItem];
 
-        const { data, error } = await supabase
+        const { data, error } = await getSupabaseClientWithToken(token)
             .from("collections")
             .update({ items: updatedItems })
             .eq("category", category)
-            .eq("author", author)
+            .eq("author_id", author_id)
             .select();
 
         if (error) {
@@ -55,6 +57,10 @@ export const AddItemToCollection = async (req, res) => {
 export const RemoveItemFromCollection = async (req, res) => {
     try {
         const { category, itemId } = req.body;
+        const token = req.headers.authorization?.split(" ")[1];
+        if (!token) {
+            return res.status(401).json({ error: "No token provided" });
+        }
 
         console.log("Removing item from collection:", category, itemId);
 
@@ -62,7 +68,7 @@ export const RemoveItemFromCollection = async (req, res) => {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
-        const { data: collection, error: fetchError } = await supabase
+        const { data: collection, error: fetchError } = await getSupabaseClientWithToken(token)
             .from("collections")
             .select("items")
             .eq("category", category)
@@ -77,7 +83,7 @@ export const RemoveItemFromCollection = async (req, res) => {
 
         // also delete the image from storage
 
-        const { error: deleteError } = await supabase.storage
+        const { error: deleteError } = await getSupabaseClientWithToken(token).storage
             .from("uploads")
             .remove([`uploads/${category}/${itemId}`]);
         if (deleteError) {
@@ -85,7 +91,7 @@ export const RemoveItemFromCollection = async (req, res) => {
             return res.status(500).json({ error: "Failed to delete image from storage", details: deleteError });
         }
 
-        const { data, error } = await supabase
+        const { data, error } = await getSupabaseClientWithToken(token)
             .from("collections")
             .update({ items: updatedItems })
             .eq("category", category)
@@ -154,13 +160,17 @@ export const ReorderItemInCollection = async (req, res) => {
     try {
         console.log("Reordering items in collection:", req.body);
         const { category, itemAnswers } = req.body;
+        const token = req.headers.authorization?.split(" ")[1];
+        if (!token) {
+            return res.status(401).json({ error: "No token provided" });
+        }
 
         if (!category || !itemAnswers) {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
         // sort supabase category items array to match the order of itemAnswers
-        const { data: collection, error: fetchError } = await supabase
+        const { data: collection, error: fetchError } = await getSupabaseClientWithToken(token)
             .from("collections")
             .select("items")
             .eq("category", category)
@@ -182,7 +192,7 @@ export const ReorderItemInCollection = async (req, res) => {
             return (itemAnswersMap[a.id] || 0) - (itemAnswersMap[b.id] || 0);
         });
 
-        const { data, error } = await supabase
+        const { data, error } = await getSupabaseClientWithToken(token)
             .from("collections")
             .update({ items: updatedItems })
             .eq("category", category)

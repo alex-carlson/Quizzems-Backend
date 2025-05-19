@@ -1,12 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase Client
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLIC_ANON_KEY);
 
 // Middleware function
 const uploadBase64ToSupabase = async (req, res, next) => {
     try {
         const { base64Image, folder } = req.body;
+
+        console.log("uploading image to supabase");
 
         if (!base64Image) {
             return res.status(400).json({ error: 'Base64 image is required' });

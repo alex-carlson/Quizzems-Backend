@@ -1,5 +1,5 @@
 import multer from "multer";
-import supabase from "../config/supabaseClient.js";
+import {getSupabaseClientWithToken, supabase} from "../config/supabaseClient.js";
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
@@ -8,6 +8,10 @@ export const UploadToSupabase = async (req, res, next) => {
     try {
         const { folder, uuid } = req.body;
         const file = req.file;
+        const token = req.headers.authorization?.split(" ")[1];
+        if (!token) {
+            return res.status(401).json({ message: "No token provided" });
+        }
 
         if (!file) {
             return res.status(400).json({ message: "Please upload an image." });
@@ -19,7 +23,7 @@ export const UploadToSupabase = async (req, res, next) => {
         console.log("🚀 Uploading to Supabase:", fileName);
 
         // Upload file to Supabase Storage
-        const { data, error } = await supabase.storage
+        const { data, error } = await getSupabaseClientWithToken(token).storage
             .from("uploads")
             .upload(fileName, file.buffer, {
                 contentType: file.mimetype,

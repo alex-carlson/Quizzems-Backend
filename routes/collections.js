@@ -20,7 +20,7 @@ const router = Router();
 router.delete('/:uid/:collection', verifySupabaseToken, deleteCollection);
 
 // GET collection by ID (public)
-router.get('/id/:id', getUserCollectionById);
+router.get('/id/:id', verifySupabaseToken, getUserCollectionById);
 
 // GET all collections of a user (public - all)
 router.get('/user/:uid/all', getAllUserCollections);
