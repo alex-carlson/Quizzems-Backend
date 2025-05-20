@@ -44,11 +44,13 @@ export const searchCollections = async (req, res) => {
     try {
         const { searchTerm } = req.query;
 
+        console.log("Searching for " + searchTerm);
+
         // Step 1: Get matching results
         const { data: matching, error: matchError } = await supabase
             .from('collections')
-            .eq('private', false)
             .select('*')
+            .eq('private', false)
             .or(`category.ilike.%${searchTerm}%,author.ilike.%${searchTerm}%`);
 
         if (matchError) {
@@ -66,6 +68,7 @@ export const searchCollections = async (req, res) => {
         const { data: filler, error: fillerError } = await supabase
             .from('collections')
             .select('*')
+            .eq('private', false)
             .not('id', 'in', `(${excludeIds.join(',')})`)
             .limit(10 - matching.length);
 
@@ -273,7 +276,7 @@ export const deleteCollection = async (req, res) => {
 
 export const setVisible = async (req, res) => {
     try {
-        const { category, author, visible } = req.body;
+        const { category, author, author_id, visible } = req.body;
         const token = req.headers.authorization?.split(' ')[1];
         if (!token) {
             return res.status(401).json({ error: 'No token provided' });
@@ -285,7 +288,7 @@ export const setVisible = async (req, res) => {
             .from('collections')
             .update({ private: !visible })
             .eq('category', category)
-            .eq('author', author)
+            .eq('author_id', author_id)
             .select('*');
 
         if (error) {

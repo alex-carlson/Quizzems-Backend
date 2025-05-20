@@ -112,17 +112,23 @@ export const RemoveItemFromCollection = async (req, res) => {
 
 export const EditItemInCollection = async (req, res) => {
     try {
-        const { collection, id, answer } = req.body;
+        const { collection, id, answer, author_id } = req.body;
+
+        const token = req.headers.authorization?.split(" ")[1];
+        if (!token) {
+            return res.status(401).json({ error: "No token provided" });
+        }
 
         // find the entry with the matching image and update the text
         if (!collection || !id || !answer) {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
-        const { data, error } = await supabase
+        const { data, error } = await getSupabaseClientWithToken(token)
             .from("collections")
             .select("items")
             .eq("category", collection)
+            .eq("author_id", author_id)
             .single();
 
         if (error) {
@@ -135,10 +141,11 @@ export const EditItemInCollection = async (req, res) => {
                 item.id === id ? { ...item, answer } : item
             );
 
-            const { error: updateError } = await supabase
+            const { error: updateError } = await getSupabaseClientWithToken(token)
                 .from("collections")
                 .update({ items })
                 .eq("category", collection)
+                .eq("author_id", author_id)
 
             if (updateError) {
                 console.error("Error updating collection:", updateError);
