@@ -6,9 +6,11 @@ const upload = multer({ storage });
 
 export const UploadToSupabase = async (req, res, next) => {
     try {
-        const { folder, uuid } = req.body;
-        const file = req.file;
+        const { folder, uuid, bucket: reqBucket, fileName } = req.body;
+        const file = req.file !== undefined ? req.file : req.body.file;
         const token = req.headers.authorization?.split(" ")[1];
+        const bucket = reqBucket || "uploads";
+
         if (!token) {
             return res.status(401).json({ message: "No token provided" });
         }
@@ -18,14 +20,23 @@ export const UploadToSupabase = async (req, res, next) => {
         }
 
         const fileExtension = file.originalname.split(".").pop();
-        const fileName = `${folder || "uploads"}/${uuid}.${fileExtension}`;
+        let finalFileName = `${uuid}/${fileName}`;
+        if (!fileName) {
+            finalFileName = `${folder || "uploads"}/${uuid}.${fileExtension}`;
+        }
 
-        console.log("🚀 Uploading to Supabase:", fileName);
+        console.log("🚀 Uploading to Supabase:", {
+            folder,
+            uuid,
+            bucket,
+            file: file ? file.originalname : "No file",
+            fileName: finalFileName,
+        });
 
         // Upload file to Supabase Storage
         const { data, error } = await getSupabaseClientWithToken(token).storage
-            .from("uploads")
-            .upload(fileName, file.buffer, {
+            .from(bucket)
+            .upload(finalFileName, file.buffer, {
                 contentType: file.mimetype,
                 upsert: true,
             });
@@ -42,7 +53,7 @@ export const UploadToSupabase = async (req, res, next) => {
         const filePath = data?.path;
 
         // Retrieve Public URL
-        const publicUrlResponse = supabase.storage.from("uploads").getPublicUrl(`${filePath}`);
+        const publicUrlResponse = supabase.storage.from(bucket).getPublicUrl(`${filePath}`);
         const publicURL = publicUrlResponse?.data?.publicUrl;
 
         if (!publicURL) {

@@ -14,6 +14,8 @@ async function verifySupabaseToken (req, res, next) {
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
 
+  console.log('🚀 User authenticated!');
+
   // Attach user to request for access in route handlers
   req.user = user;
 

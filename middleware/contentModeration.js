@@ -4,8 +4,6 @@ import axios from "axios";
 export const contentModeration = async (req, res, next) => {
     console.log("🚀 Content Moderation Middleware Triggered");
     try {
-        console.log(req);
-
         // store req.uploadedImageUrl
         const uploadedImageUrl = req.uploadedImageUrl || req.body.uploadedImageUrl;
         console.log("🚀 Uploaded Image URL:", uploadedImageUrl);

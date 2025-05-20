@@ -1,81 +1,30 @@
-import User from '../models/userModel.js';
-import jwt from 'jsonwebtoken';
+import { supabase } from '../config/supabaseClient.js';
+export const uploadUserAvatar = (req, res) => {
+    const { userId, file, path } = req.body;
 
-export const createUser = (req, res) => {
-    const { username, email, password } = req.body;
-
-    if (!username) {
-        return res.status(400).json({ error: 'Username is required' });
+    if (!userId) {
+        return res.status(400).json({ error: 'User ID is required' });
     }
 
-    if (!email) {
-        return res.status(400).json({ error: 'Email is required' });
+    if (!file) {
+        return res.status(400).json({ error: 'File is required' });
     }
-
-    if (!password) {
-        return res.status(400).json({ error: 'Password is required' });
-    }
-
-    const newUser = new User(username, email, password);
-
-    newUser.register((error, data) => {
-        if (error) {
-            return res.status(400).json({ error: 'User could not be created' });
-        }
-
-        return res.status(201).json({ message: 'User created successfully' });
-    });
-};
-
-export const loginUser = (req, res) => {
-    const { email, username, password } = req.body;
-
-    if (!email && !username) {
-        return res.status(400).json({ error: 'Email or username is required' });
-    }
-
-    if (!password) {
-        return res.status(400).json({ error: 'Password is required' });
-    }
-
-    User.login(email || username, password, (error, user) => {
-        if (error) {
-            return res.status(400).json({ error: 'Invalid credentials' });
-        }
-
-        const token = jwt.sign({ user }, process.env.JWT_SECRET, { expiresIn: '14d' });
-        return res.status(200).json({ user, token });
-    });
-};
-
-export const forgotPassword = (req, res) => {
-    const { email } = req.body;
-
-    if (!email) {
-        return res.status(400).json({ error: 'Email is required' });
-    }
-
-    User.forgotPassword(email, (error, data) => {
-        if (error) {
-            return res.status(400).json({ error: 'Password reset could not be initiated' });
-        }
-
-        return res.status(200).json({ message: 'Password reset initiated' });
-    });
 }
 
-export const resetPassword = (req, res) => {
-    const { email, password, token } = req.body;
-
-    if (!email) {
-        return res.status(400).json({ error: 'Email is required' });
-    }
-
-    return User.resetPassword(email, password, token, (error, data) => {
+export const getUserProfile = async (req, res) => {
+    const { uid } = req.params;
+    try {
+        
+        console.log("Getting user profile: " + uid);
+        const { data, error } = await supabase.from('profiles').select('*').eq('id', uid).single();
+        console.log("Data: " + data);
+        console.log("Error: " + error);
         if (error) {
-            return res.status(400).json({ error: 'Password reset could not be completed' });
+            return res.status(500).json({ error: error.message });
         }
 
-        return res.status(200).json({ message: 'Password reset completed' });
-    });
-}
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};

@@ -9,6 +9,7 @@ const router = Router();
 router.post(
     '/upload',
     verifySupabaseToken,
+    // contentModeration,
     upload.single('file'),
     UploadToSupabase,
     AddItemToCollection

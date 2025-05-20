@@ -164,9 +164,9 @@ export const getUserCollections = async (req, res) => {
 
 export const getAllUserCollections = async (req, res) => {
     try {
-        const { username } = req.params;
-        console.log("Getting all collections from " + username);
-        const { data, error } = await supabase.from('collections').select('*').eq('author', username);
+        const { uid } = req.params;
+        console.log("Getting all collections from " + uid);
+        const { data, error } = await supabase.from('collections').select('*').eq('author_id', uid);
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -281,8 +281,6 @@ export const setVisible = async (req, res) => {
         if (!token) {
             return res.status(401).json({ error: 'No token provided' });
         }
-
-        console.log("Setting visibility of " + category + " to " + visible);
 
         const { data, error } = await getSupabaseClientWithToken(token)
             .from('collections')
