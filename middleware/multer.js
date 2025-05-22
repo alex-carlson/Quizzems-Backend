@@ -1,4 +1,5 @@
 import multer from "multer";
+import axios from "axios";
 import { getSupabaseClientWithToken, supabase } from "../config/supabaseClient.js";
 
 const storage = multer.memoryStorage();
@@ -9,7 +10,7 @@ export const uploadUrlToSupabase = async (req, res, next) => {
         const { folder, uuid, bucket: reqBucket, fileName } = req.body;
         const token = req.headers.authorization?.split(" ")[1];
         const bucket = reqBucket || "uploads";
-        const fileUrl = req.body.fileUrl;
+        const fileUrl = req.body.url;
 
         if (!token) {
             return res.status(401).json({ message: "No token provided" });
@@ -19,7 +20,13 @@ export const uploadUrlToSupabase = async (req, res, next) => {
             return res.status(400).json({ message: "Please provide a file URL." });
         }
 
-        const fileExtension = fileUrl.split(".").pop();
+        // Get extension by finding the last period in the URL
+        let fileExtension = "";
+        const lastDotIndex = fileUrl.lastIndexOf(".");
+        if (lastDotIndex !== -1 && lastDotIndex < fileUrl.length - 1) {
+            fileExtension = fileUrl.substring(lastDotIndex + 1).split(/[?#]/)[0];
+        }
+
         let finalFileName = `${uuid}/${fileName}`;
         if (!fileName) {
             finalFileName = `${folder || "uploads"}/${uuid}.${fileExtension}`;
@@ -33,12 +40,18 @@ export const uploadUrlToSupabase = async (req, res, next) => {
             fileName: finalFileName,
         });
 
+        const fileResponse = await axios.get(fileUrl, { responseType: "arraybuffer" });
+        const fileBuffer = Buffer.from(fileResponse.data, "binary");
+        const contentType = fileResponse.headers["content-type"] || "application/octet-stream";
+
         const { data, error } = await getSupabaseClientWithToken(token).storage
             .from(bucket)
-            .upload(finalFileName, fileUrl, {
-                contentType: "application/octet-stream",
+            .upload(finalFileName, fileBuffer, {
+                contentType,
                 upsert: true,
             });
+
+
         if (error) {
             console.error("❌ Supabase Upload Error:", error);
             return res.status(400).json({
@@ -66,7 +79,6 @@ export const uploadUrlToSupabase = async (req, res, next) => {
         res.status(500).json({ message: "Internal Server Error", details: error.message });
     }
 }
-
 
 export const UploadToSupabase = async (req, res, next) => {
     try {
