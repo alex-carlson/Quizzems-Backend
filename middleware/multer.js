@@ -1,8 +1,72 @@
 import multer from "multer";
-import {getSupabaseClientWithToken, supabase} from "../config/supabaseClient.js";
+import { getSupabaseClientWithToken, supabase } from "../config/supabaseClient.js";
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
+
+export const uploadUrlToSupabase = async (req, res, next) => {
+    try {
+        const { folder, uuid, bucket: reqBucket, fileName } = req.body;
+        const token = req.headers.authorization?.split(" ")[1];
+        const bucket = reqBucket || "uploads";
+        const fileUrl = req.body.fileUrl;
+
+        if (!token) {
+            return res.status(401).json({ message: "No token provided" });
+        }
+
+        if (!fileUrl) {
+            return res.status(400).json({ message: "Please provide a file URL." });
+        }
+
+        const fileExtension = fileUrl.split(".").pop();
+        let finalFileName = `${uuid}/${fileName}`;
+        if (!fileName) {
+            finalFileName = `${folder || "uploads"}/${uuid}.${fileExtension}`;
+        }
+
+        console.log("🚀 Uploading to Supabase from URL:", {
+            folder,
+            uuid,
+            bucket,
+            fileUrl: fileUrl ? fileUrl : "No file URL",
+            fileName: finalFileName,
+        });
+
+        const { data, error } = await getSupabaseClientWithToken(token).storage
+            .from(bucket)
+            .upload(finalFileName, fileUrl, {
+                contentType: "application/octet-stream",
+                upsert: true,
+            });
+        if (error) {
+            console.error("❌ Supabase Upload Error:", error);
+            return res.status(400).json({
+                message: "Failed to upload to Supabase",
+                details: error.message,
+            });
+        }
+
+        // Ensure file path is correct
+        const filePath = data?.path;
+        // Retrieve Public URL
+        const publicUrlResponse = supabase.storage.from(bucket).getPublicUrl(`${filePath}`);
+        const publicURL = publicUrlResponse?.data?.publicUrl;
+        if (!publicURL) {
+            console.error("❌ Failed to retrieve public URL");
+            return res.status(400).json({ message: "Failed to retrieve public URL" });
+        }
+
+        console.log("🚀 Public URL:", publicURL)
+        req.uploadedImageUrl = publicURL;
+        next();
+    }
+    catch (error) {
+        console.error("❌ Unexpected Error:", error);
+        res.status(500).json({ message: "Internal Server Error", details: error.message });
+    }
+}
+
 
 export const UploadToSupabase = async (req, res, next) => {
     try {

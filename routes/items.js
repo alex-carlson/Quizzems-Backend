@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { AddItemToCollection, RemoveItemFromCollection, EditItemInCollection, ReorderItemInCollection } from '../controllers/itemsController.js';
-import { upload, UploadToSupabase } from '../middleware/multer.js';
+import { upload, UploadToSupabase, uploadUrlToSupabase } from '../middleware/multer.js';
 import { contentModeration } from '../middleware/contentModeration.js';
 import verifySupabaseToken from '../middleware/supabaseAuth.js';
 
@@ -14,6 +14,9 @@ router.post(
     UploadToSupabase,
     AddItemToCollection
 );
+
+router.post('/upload-url', verifySupabaseToken, uploadUrlToSupabase, AddItemToCollection);
+
 router.post('/remove', verifySupabaseToken, RemoveItemFromCollection);
 router.post('/edit', verifySupabaseToken, EditItemInCollection)
 router.post('/reorder', verifySupabaseToken, ReorderItemInCollection)

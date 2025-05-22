@@ -13,6 +13,7 @@ export const uploadUserAvatar = (req, res) => {
 
 export const getUserProfile = async (req, res) => {
     const { uid } = req.params;
+    console.log("Fetching user profile for UID:", uid);
     try {
         const { data, error } = await supabase.from('profiles').select('*').eq('id', uid).single();
         if (error) {
