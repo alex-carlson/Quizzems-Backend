@@ -12,6 +12,38 @@ export function setupSocketIO(io) {
     io.on('connection', (socket) => {
         console.log(`Socket connected: ${socket.id}`);
 
+        socket.on('connect-request', async () => {
+            const token = socket.handshake.auth.token;
+            const anonId = socket.handshake.auth.anonId;
+
+            let userId;
+
+            if (token) {
+                const { data: userData, error } = await supabase.auth.getUser(token);
+                if (error || !userData?.user) return;
+                userId = userData.user.id;
+            } else if (anonId) {
+                userId = anonId;
+            } else {
+                return;
+            }
+
+            for (const code in rooms) {
+                const room = rooms[code];
+                const existingSocketId = room.userSockets?.[userId];
+
+                if (existingSocketId && existingSocketId !== socket.id) {
+                    const existingSocket = io.sockets.sockets.get(existingSocketId);
+                    if (existingSocket) {
+                        existingSocket.disconnect(true);
+                        console.log(`Disconnected duplicate socket for user ${userId}`);
+                    }
+
+                    room.userSockets[userId] = socket.id;
+                }
+            }
+        });
+
         socket.on('create-room', async ({ collectionId }) => {
             const token = socket.handshake.auth.token;
 
@@ -101,6 +133,10 @@ export function setupSocketIO(io) {
 
         socket.on('score-point', ({ code, playerId, cardIndex }) => {
             console.log(`Scoring point for player ${playerId} in room: ${code}`);
+            // if playerId is undefined, use socket.id
+            if (!playerId) {
+                playerId = Object.keys(rooms[code].userSockets || {}).find(id => rooms[code].userSockets[id] === socket.id);
+            }
             if (!rooms[code]) {
                 socket.emit('error', 'Room not found');
                 return;
