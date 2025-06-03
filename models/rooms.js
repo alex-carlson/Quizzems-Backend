@@ -1,0 +1,3 @@
+const rooms = {};
+
+export { rooms };

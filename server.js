@@ -1,16 +1,31 @@
-import app from './app.js';
+// server.js
+import http from 'http';
+import { Server as SocketIO } from 'socket.io';
 import cors from 'cors';
+import app from './app.js';
+import { setupSocketIO } from './socket.js'; // ✅ Import your socket logic
 
 const PORT = process.env.PORT || 3000;
 
-// Allow requests from your frontend dev server
 app.use(
   cors({
-    origin: 'http://localhost:5173/', // your Svelte app's origin
-    credentials: true,               // if you're using cookies/auth headers
+    origin: 'http://localhost:5173',
+    credentials: true,
   })
 );
 
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+const server = http.createServer(app);
+
+const io = new SocketIO(server, {
+  cors: {
+    origin: 'http://localhost:5173',
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
+});
+
+setupSocketIO(io); // ✅ Initialize socket handlers
+
+server.listen(PORT, () => {
+  console.log(`Server is running with Socket.IO on port ${PORT}`);
 });

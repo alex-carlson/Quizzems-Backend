@@ -1,4 +1,4 @@
-import {supabase, getSupabaseClientWithToken} from '../config/supabaseClient.js';
+import { supabase, getSupabaseClientWithToken } from '../config/supabaseClient.js';
 
 export const getAllCollections = async (req, res) => {
     try {
@@ -43,8 +43,6 @@ export const getLatestCollections = async (req, res) => {
 export const searchCollections = async (req, res) => {
     try {
         const { searchTerm } = req.query;
-
-        console.log("Searching for " + searchTerm);
 
         // Step 1: Get matching results
         const { data: matching, error: matchError } = await supabase
@@ -92,7 +90,7 @@ export const getUserCollectionById = async (req, res) => {
         if (!token) {
             return res.status(401).json({ error: 'No token provided' });
         }
-        
+
         const { data, error } = await getSupabaseClientWithToken(token)
             .from('collections')
             .select('*')
@@ -202,12 +200,12 @@ export const createNewCollection = async (req, res) => {
         // ✅ Proceed with insertion
         const { data, error } = await getSupabaseClientWithToken(token)
             .from('collections')
-            .insert([{ 
-                category, 
-                author, 
-                author_id, 
-                items: [], 
-                private: true 
+            .insert([{
+                category,
+                author,
+                author_id,
+                items: [],
+                private: true
             }])
             .select();
 
