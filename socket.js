@@ -99,27 +99,66 @@ export function setupSocketIO(io) {
             io.to(code).emit('game-started', rooms[code]);
         });
 
+        socket.on('score-point', ({ code, playerId, cardIndex }) => {
+            console.log(`Scoring point for player ${playerId} in room: ${code}`);
+            if (!rooms[code]) {
+                socket.emit('error', 'Room not found');
+                return;
+            }
+
+            rooms[code].scores ??= {};
+            rooms[code].scores[playerId] = (rooms[code].scores[playerId] || 0) + 1;
+
+            console.log(`Updated scores for room ${code}:`, rooms[code].scores);
+
+            io.to(code).emit('score-updated', { scores: rooms[code].scores, cardIndex });
+        });
+
         socket.on('disconnect', () => {
             console.log(`Socket disconnected: ${socket.id}`);
+
             for (const code in rooms) {
                 const room = rooms[code];
-                if (room.userSockets) {
-                    // Find all userIds with this socket.id
-                    const userIdsToRemove = Object.entries(room.userSockets)
-                        .filter(([userId, sockId]) => sockId === socket.id)
-                        .map(([userId]) => userId);
 
-                    // Remove users from players and userSockets
-                    userIdsToRemove.forEach(userId => {
-                        room.players = room.players.filter(pid => pid !== userId);
-                        delete room.userSockets[userId];
-                    });
+                if (!room.userSockets) continue;
 
-                    if (userIdsToRemove.length > 0) {
-                        io.to(code).emit('room-update', room);
+                const disconnectedUserIds = Object.entries(room.userSockets)
+                    .filter(([_, sockId]) => sockId === socket.id)
+                    .map(([userId]) => userId);
+
+                if (disconnectedUserIds.length === 0) continue;
+
+                let changed = false;
+
+                disconnectedUserIds.forEach(userId => {
+                    // Remove from userSockets
+                    delete room.userSockets[userId];
+
+                    // Remove from players
+                    const index = room.players.indexOf(userId);
+                    if (index !== -1) {
+                        room.players.splice(index, 1);
+                        changed = true;
                     }
+
+                    // If the disconnected user is host, assign a new host
+                    if (room.hostId === userId) {
+                        room.hostId = room.players[0] || null;
+                        changed = true;
+                    }
+                });
+
+                if (changed) {
+                    io.to(code).emit('room-update', room);
+                }
+
+                // Optional cleanup: delete room if empty
+                if (room.players.length === 0) {
+                    delete rooms[code];
+                    console.log(`Room ${code} deleted due to no players remaining.`);
                 }
             }
         });
+
     });
 }

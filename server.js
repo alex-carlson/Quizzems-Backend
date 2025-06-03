@@ -6,10 +6,11 @@ import app from './app.js';
 import { setupSocketIO } from './socket.js'; // ✅ Import your socket logic
 
 const PORT = process.env.PORT || 3000;
+const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 app.use(
   cors({
-    origin: 'http://localhost:5173',
+    origin: allowedOrigin,
     credentials: true,
   })
 );
@@ -18,7 +19,7 @@ const server = http.createServer(app);
 
 const io = new SocketIO(server, {
   cors: {
-    origin: 'http://localhost:5173',
+    origin: allowedOrigin,
     methods: ['GET', 'POST'],
     credentials: true,
   },
