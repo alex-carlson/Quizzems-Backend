@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import verifySupabaseToken from '../middleware/supabaseAuth.js';
-import { uploadUserAvatar, getUserProfile } from '../controllers/userController.js';
+import { uploadUserAvatar, getUserProfile, createUserProfile } from '../controllers/userController.js';
 import { upload, UploadToSupabase } from '../middleware/multer.js';
 import { contentModeration } from '../middleware/contentModeration.js';
 
