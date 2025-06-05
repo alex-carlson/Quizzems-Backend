@@ -10,7 +10,6 @@ function generateRoomCode() {
 
 export function setupSocketIO(io) {
     io.on('connection', (socket) => {
-        console.log(`Socket connected: ${socket.id}`);
 
         socket.on('connect-request', async () => {
             const token = socket.handshake.auth.token;
@@ -55,6 +54,7 @@ export function setupSocketIO(io) {
             const { data: user, error } = await supabase.auth.getUser(token);
 
             if (error || !user || !user.user) {
+                console.error('Error fetching user:', error);
                 socket.emit('error', 'Invalid or expired token');
                 return;
             }
@@ -150,8 +150,36 @@ export function setupSocketIO(io) {
             io.to(code).emit('score-updated', { scores: rooms[code].scores, cardIndex });
         });
 
+
+        socket.on('give-up', ({ code, playerId }) => {
+            if (!rooms[code]) {
+                socket.emit('error', 'Room not found');
+                return;
+            }
+
+            if (!rooms[code].finishedPlayers) {
+                rooms[code].finishedPlayers = [];
+            }
+
+            if (!rooms[code].finishedPlayers.includes(playerId)) {
+                rooms[code].finishedPlayers.push(playerId);
+            }
+
+            console.log(`Player ${playerId} has given up in room: ${code}`);
+            io.to(code).emit('player-gave-up', { playerId, finishedPlayers: rooms[code].finishedPlayers });
+
+
+
+            // if all players have given up, end the game
+
+            if (rooms[code].finishedPlayers.length === rooms[code].players.length) {
+                rooms[code].isFinished = true;
+                io.to(code).emit('game-finished', { finishedPlayers: rooms[code].finishedPlayers });
+                console.log(`Game finished in room: ${code}`);
+            }
+        });
+
         socket.on('disconnect', () => {
-            console.log(`Socket disconnected: ${socket.id}`);
 
             for (const code in rooms) {
                 const room = rooms[code];
