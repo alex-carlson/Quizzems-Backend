@@ -1,4 +1,4 @@
-import { supabase } from '../config/supabaseClient.js';
+import { supabase, getSupabaseClientWithToken } from '../config/supabaseClient.js';
 export const uploadUserAvatar = (req, res) => {
     const { userId, file, path } = req.body;
 
@@ -13,7 +13,6 @@ export const uploadUserAvatar = (req, res) => {
 
 export const getUserProfile = async (req, res) => {
     const { uid } = req.params;
-    console.log("Fetching user profile for UID:", uid);
     try {
         const { data, error } = await supabase.from('profiles').select('*').eq('id', uid).single();
         if (error) {
@@ -49,3 +48,88 @@ export const createUserProfile = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 }
+
+export const getUsernames = async (req, res) => {
+    try {
+        const { data, error } = await supabase.from('profiles').select('username, bio, id, quizzes_completed');
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const completeQuiz = async (req, res) => {
+    console.log('Complete Quiz Endpoint Hit');
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ error: 'No token provided' });
+
+    const { user_id, quiz_id, percentage } = req.body;
+
+    if (!user_id || !quiz_id) {
+        return res.status(400).json({ error: 'User ID and quiz ID are required' });
+    }
+
+    try {
+        // Fetch current profile with quizzes_completed
+        const { data: profile, error: fetchError } = await supabase
+            .from('profiles')
+            .select('quizzes_completed')
+            .eq('id', user_id)
+            .single();
+
+        if (fetchError) {
+            return res.status(500).json({ error: fetchError.message });
+        }
+
+        // Ensure quizzes_completed is an array
+        const currentQuizzes = Array.isArray(profile.quizzes_completed)
+            ? profile.quizzes_completed
+            : profile.quizzes_completed === null
+                ? []
+                : [];
+
+        // Find if quiz already exists
+        const existingIndex = currentQuizzes.findIndex(q => q.quiz_id === quiz_id);
+
+        let updatedQuizzes;
+        if (existingIndex !== -1) {
+            // Only update if new percentage is higher
+            if (percentage > currentQuizzes[existingIndex].percentage) {
+                const updatedQuiz = { ...currentQuizzes[existingIndex], percentage };
+                updatedQuizzes = [
+                    ...currentQuizzes.slice(0, existingIndex),
+                    updatedQuiz,
+                    ...currentQuizzes.slice(existingIndex + 1)
+                ];
+            } else {
+                updatedQuizzes = currentQuizzes;
+            }
+        } else {
+            updatedQuizzes = [...currentQuizzes, { quiz_id, percentage }];
+        }
+
+
+        // Update the user's profile
+        const { data, error: updateError } = await getSupabaseClientWithToken(token)
+            .from('profiles')
+            .update({ quizzes_completed: updatedQuizzes })
+            .eq('id', user_id)
+            .select()
+            .single();
+
+        if (updateError) {
+            console.error('Update error:', updateError);
+            return res.status(500).json({ error: updateError.message });
+        }
+
+        res.json(data);
+    } catch (err) {
+        console.error('Server error:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
