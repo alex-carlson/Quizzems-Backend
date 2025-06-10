@@ -193,13 +193,6 @@ export function setupSocketIO(io) {
                     delete rooms[code];
                     console.log(`Room ${code} deleted due to no players remaining.`);
                 }
-
-                // if the host leaves, close the room
-                if (room.hostId && room.userSockets[room.hostId] === socket.id) {
-                    delete rooms[code];
-                    console.log(`Room ${code} closed due to host leaving.`);
-                    io.to(code).emit('room-closed', { code });
-                }
             }
         });
 

@@ -64,7 +64,6 @@ export const getUsernames = async (req, res) => {
 };
 
 export const completeQuiz = async (req, res) => {
-    console.log('Complete Quiz Endpoint Hit');
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).json({ error: 'No token provided' });
 
