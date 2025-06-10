@@ -40,6 +40,35 @@ export const getLatestCollections = async (req, res) => {
     }
 };
 
+
+export const getRandomCollections = async (req, res) => {
+    try {
+        const { limit } = req.params;
+        // If no limit is provided, default to 10
+        if (!limit || isNaN(limit) || limit <= 0) {
+            limit = 10;
+        }
+        const max = parseInt(limit, 10);
+
+        // get all public collections
+        const { data, error } = await supabase
+            .from('collections')
+            .select('*')
+            .eq('private', false);
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+        // Shuffle the data array
+        const shuffledData = data.sort(() => 0.5 - Math.random());
+        // Slice the first max items
+        const randomCollections = shuffledData.slice(0, max);
+        res.json(randomCollections);
+    } catch (err) {
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
 export const searchCollections = async (req, res) => {
     try {
         const { searchTerm } = req.query;

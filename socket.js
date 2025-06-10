@@ -1,7 +1,6 @@
 // socket.js
 import { rooms } from './models/rooms.js';
 import { supabase } from './config/supabaseClient.js';
-import crypto from 'crypto';
 
 function generateRoomCode() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -10,38 +9,6 @@ function generateRoomCode() {
 
 export function setupSocketIO(io) {
     io.on('connection', (socket) => {
-
-        socket.on('connect-request', async () => {
-            const token = socket.handshake.auth.token;
-            const anonId = socket.handshake.auth.anonId;
-
-            let userId;
-
-            if (token) {
-                const { data: userData, error } = await supabase.auth.getUser(token);
-                if (error || !userData?.user) return;
-                userId = userData.user.id;
-            } else if (anonId) {
-                userId = anonId;
-            } else {
-                return;
-            }
-
-            for (const code in rooms) {
-                const room = rooms[code];
-                const existingSocketId = room.userSockets?.[userId];
-
-                if (existingSocketId && existingSocketId !== socket.id) {
-                    const existingSocket = io.sockets.sockets.get(existingSocketId);
-                    if (existingSocket) {
-                        existingSocket.disconnect(true);
-                        console.log(`Disconnected duplicate socket for user ${userId}`);
-                    }
-
-                    room.userSockets[userId] = socket.id;
-                }
-            }
-        });
 
         socket.on('create-room', async ({ collectionId }) => {
             const token = socket.handshake.auth.token;
@@ -64,6 +31,8 @@ export function setupSocketIO(io) {
                 code = generateRoomCode();
             } while (rooms[code]);
 
+            console.log(`Creating room with code: ${code} for user: ${user.user.id}`);
+
             const hostId = user.user.id;
             const players = [hostId];
             rooms[code] = { hostId, roomCode: code, players, collectionId, createdAt: Date.now() };
@@ -73,14 +42,17 @@ export function setupSocketIO(io) {
                 rooms[code].userSockets = {};
             }
             rooms[code].userSockets[hostId] = socket.id;
-
+            rooms[code].isStarted = false;
+            rooms[code].isFinished = false;
+            rooms[code].scores = {};
+            rooms[code].finishedPlayers = [];
+            rooms[code].players = rooms[code].players || [];
             socket.join(code);
-
-            socket.emit('room-created', { code, room: rooms[code] });
+            // socket.emit('room-created', { code, room: rooms[code] });
             io.to(code).emit('room-update', rooms[code]);
+            io.to(socket.id).emit('room-created', { code, room: rooms[code] });
         });
 
-        // Inside your setupSocketIO(io) function:
         socket.on('join-room', async ({ code }) => {
             if (!rooms[code]) {
                 socket.emit('error', 'Room not found');
@@ -89,6 +61,7 @@ export function setupSocketIO(io) {
 
             let playerId;
             const token = socket.handshake.auth.token;
+            const anonId = socket.handshake.auth.anonId;
 
             if (token) {
                 const { data: user, error } = await supabase.auth.getUser(token);
@@ -99,7 +72,7 @@ export function setupSocketIO(io) {
 
             if (!playerId) {
                 // Generate a random UUID for unauthenticated user
-                playerId = crypto.randomUUID();
+                playerId = anonId;
             }
 
             socket.join(code);
@@ -145,9 +118,7 @@ export function setupSocketIO(io) {
             rooms[code].scores ??= {};
             rooms[code].scores[playerId] = (rooms[code].scores[playerId] || 0) + 1;
 
-            console.log(`Updated scores for room ${code}:`, rooms[code].scores);
-
-            io.to(code).emit('score-updated', { scores: rooms[code].scores, cardIndex });
+            io.to(code).emit('score-updated', { scores: rooms[code].scores, cardIndex, playerId });
         });
 
 
@@ -213,6 +184,7 @@ export function setupSocketIO(io) {
                 });
 
                 if (changed) {
+                    console.log(`User(s) ${disconnectedUserIds.join(', ')} disconnected from room: ${code}`);
                     io.to(code).emit('room-update', room);
                 }
 
@@ -220,6 +192,13 @@ export function setupSocketIO(io) {
                 if (room.players.length === 0) {
                     delete rooms[code];
                     console.log(`Room ${code} deleted due to no players remaining.`);
+                }
+
+                // if the host leaves, close the room
+                if (room.hostId && room.userSockets[room.hostId] === socket.id) {
+                    delete rooms[code];
+                    console.log(`Room ${code} closed due to host leaving.`);
+                    io.to(code).emit('room-closed', { code });
                 }
             }
         });

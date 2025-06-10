@@ -10,7 +10,8 @@ import {
   getPublicUserCollection,
   renameCollection,
   deleteCollection,
-  setVisible
+  setVisible,
+  getRandomCollections
 } from '../controllers/collectionsController.js';
 import verifySupabaseToken from '../middleware/supabaseAuth.js';
 
@@ -38,6 +39,7 @@ router.post('/setVisible', verifySupabaseToken, setVisible);
 
 // GET latest collections (public)
 router.get('/latest', getLatestCollections);
+router.get('/random/:limit', getRandomCollections); // Random collections endpoint
 
 // GET collections by search (public)
 router.get('/search', searchCollections);
