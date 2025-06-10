@@ -1,5 +1,12 @@
 import { Router } from 'express';
-import { AddItemToCollection, RemoveItemFromCollection, EditItemInCollection, ReorderItemInCollection, AddAudioToCollection } from '../controllers/itemsController.js';
+import {
+    AddItemToCollection,
+    RemoveItemFromCollection,
+    EditItemInCollection,
+    ReorderItemInCollection,
+    AddAudioToCollection,
+    AddQuestionToCollection
+} from '../controllers/itemsController.js';
 import { upload, UploadToSupabase, uploadUrlToSupabase } from '../middleware/multer.js';
 import { contentModeration } from '../middleware/contentModeration.js';
 import verifySupabaseToken from '../middleware/supabaseAuth.js';
@@ -17,6 +24,7 @@ router.post(
 
 router.post('/upload-url', verifySupabaseToken, uploadUrlToSupabase, AddItemToCollection);
 router.post('/add-audio', verifySupabaseToken, upload.single('file'), AddAudioToCollection);
+router.post('/add-question', verifySupabaseToken, upload.single('file'), AddQuestionToCollection);
 
 router.post('/remove', verifySupabaseToken, RemoveItemFromCollection);
 router.post('/edit', verifySupabaseToken, EditItemInCollection)
