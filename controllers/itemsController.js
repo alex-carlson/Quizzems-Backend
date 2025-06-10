@@ -1,4 +1,4 @@
-import {getSupabaseClientWithToken, supabase} from "../config/supabaseClient.js";
+import { getSupabaseClientWithToken, supabase } from "../config/supabaseClient.js";
 
 export const AddItemToCollection = async (req, res) => {
     try {
@@ -47,6 +47,51 @@ export const AddItemToCollection = async (req, res) => {
             return res.status(500).json({ error: "Failed to update collection", details: error });
         }
 
+        res.status(201).json(data);
+    } catch (err) {
+        console.error("Unexpected error:", err);
+        res.status(500).json({ error: "Internal Server Error", details: err.message });
+    }
+};
+
+export const AddAudioToCollection = async (req, res) => {
+    console.log("Adding audio to collection:", req.body);
+    try {
+        const { category, author, uuid, answer, author_id, url } = req.body;
+        if (!category || !author || !url) {
+            return res.status(400).json({ error: "Missing required fields" });
+        }
+        const token = req.headers.authorization?.split(" ")[1];
+        if (!token) {
+            return res.status(401).json({ error: "No token provided" });
+        }
+        const myItem = {
+            id: uuid || null,
+            audio: url || null,
+            answer: answer || null
+        };
+        // Check if `items` column is NULL and initialize it if needed
+        const { data: collection, error: fetchError } = await getSupabaseClientWithToken(token)
+            .from("collections")
+            .select("items")
+            .eq("category", category)
+            .eq("author_id", author_id)
+            .single();
+        if (fetchError) {
+            console.error("Error fetching collection:", fetchError);
+            return res.status(500).json({ error: "Failed to fetch collection", details: fetchError });
+        }
+        const updatedItems = collection.items ? [...collection.items, myItem] : [myItem];
+        const { data, error } = await getSupabaseClientWithToken(token)
+            .from("collections")
+            .update({ items: updatedItems })
+            .eq("category", category)
+            .eq("author_id", author_id)
+            .select();
+        if (error) {
+            console.error("Error updating collection:", error);
+            return res.status(500).json({ error: "Failed to update collection", details: error });
+        }
         res.status(201).json(data);
     } catch (err) {
         console.error("Unexpected error:", err);
