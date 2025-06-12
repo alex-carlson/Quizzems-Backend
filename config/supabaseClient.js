@@ -3,14 +3,14 @@ import { createClient } from '@supabase/supabase-js';
 import 'dotenv/config';
 
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseAnonKey = process.env.SUPABASE_PUBLIC_ANON_KEY;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Optional: singleton client (for public, non-authenticated actions)
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 // ✅ Factory for authenticated client
 export const getSupabaseClientWithToken = (token) =>
-  createClient(supabaseUrl, supabaseAnonKey, {
+  createClient(supabaseUrl, supabaseServiceRoleKey, {
     global: {
       headers: {
         Authorization: `Bearer ${token}`,

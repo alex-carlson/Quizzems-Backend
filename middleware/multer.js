@@ -1,5 +1,6 @@
 import multer from "multer";
 import axios from "axios";
+import sharp from "sharp";
 import { getSupabaseClientWithToken, supabase } from "../config/supabaseClient.js";
 
 const storage = multer.memoryStorage();
@@ -82,10 +83,11 @@ export const uploadUrlToSupabase = async (req, res, next) => {
 
 export const UploadToSupabase = async (req, res, next) => {
     try {
-        const { folder, uuid, bucket: reqBucket, fileName } = req.body;
+        const { folder, uuid, forceJpeg } = req.body;
         const file = req.file !== undefined ? req.file : req.body.file;
         const token = req.headers.authorization?.split(" ")[1];
-        const bucket = reqBucket || "uploads";
+        const bucket = "uploads";
+
 
         if (!token) {
             return res.status(401).json({ message: "No token provided" });
@@ -95,11 +97,20 @@ export const UploadToSupabase = async (req, res, next) => {
             return res.status(400).json({ message: "Please upload an image." });
         }
 
-        const fileExtension = file.originalname.split(".").pop();
-        let finalFileName = `${uuid}/${fileName}`;
-        if (!fileName) {
-            finalFileName = `${folder || "uploads"}/${uuid}.${fileExtension}`;
+        let fileExtension = file.originalname.split(".").pop().toLowerCase();
+
+        if (forceJpeg) {
+            console.log("🔄 Converting image to JPEG format");
+            const jpgBuffer = await sharp(file.buffer)
+                .jpeg({ quality: 80 })
+                .toBuffer();
+            fileExtension = "jpg";
+            file.buffer = jpgBuffer;
+            file.mimetype = "image/jpeg";
+            file.originalname = `${file.originalname.split(".")[0]}.${fileExtension}`;
         }
+
+        const finalFileName = `${folder || "uploads"}/${uuid}.${fileExtension}`;
 
         console.log("🚀 Uploading to Supabase:", {
             folder,
