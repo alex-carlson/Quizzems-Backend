@@ -1,4 +1,5 @@
 import { supabase, getSupabaseClientWithToken } from '../config/supabaseClient.js';
+import slugify from 'slugify';
 
 export const getAllCollections = async (req, res) => {
     try {
@@ -154,7 +155,11 @@ export const getUserCollection = async (req, res) => {
 export const getPublicUserCollection = async (req, res) => {
     try {
         const { uid, collection } = req.params;
-        const { data, error } = await supabase.from('collections').select('*').eq('category', collection).eq('author_id', uid).single();
+        const { data, error } = await supabase
+            .from('collections')
+            .select('*')
+            .eq('slug', collection)
+            .eq('author_id', uid).single();
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -192,7 +197,6 @@ export const getUserCollections = async (req, res) => {
 export const getAllUserCollections = async (req, res) => {
     try {
         const { uid } = req.params;
-        console.log("Getting all collections from " + uid);
         const { data, error } = await supabase.from('collections').select('*').eq('author_id', uid);
 
         if (error) {
@@ -226,6 +230,12 @@ export const createNewCollection = async (req, res) => {
             return res.status(401).json({ error: 'Invalid token format' });
         }
 
+        const slug = slugify(category, {
+            lower: true,
+            strict: true,
+            trim: true
+        });
+
         // ✅ Proceed with insertion
         const { data, error } = await getSupabaseClientWithToken(token)
             .from('collections')
@@ -234,7 +244,8 @@ export const createNewCollection = async (req, res) => {
                 author,
                 author_id,
                 items: [],
-                private: true
+                private: true,
+                slug
             }])
             .select();
 
