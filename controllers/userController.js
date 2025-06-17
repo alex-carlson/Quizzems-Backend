@@ -18,7 +18,7 @@ export const getUserProfile = async (req, res) => {
         let { data, error } = await supabase
             .from('profiles')
             .select('*')
-            .eq('uid', uid)
+            .eq('id', uid)
             .single();
 
         // If not found, try matching by `id` (uuid)
