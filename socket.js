@@ -10,7 +10,7 @@ function generateRoomCode() {
 export function setupSocketIO(io) {
     io.on('connection', (socket) => {
 
-        socket.on('create-room', async ({ collectionId }) => {
+        socket.on('create-room', async () => {
             const token = socket.handshake.auth.token;
 
             if (!token) {
@@ -35,7 +35,7 @@ export function setupSocketIO(io) {
 
             const hostId = user.user.id;
             const players = [hostId];
-            rooms[code] = { hostId, roomCode: code, players, collectionId, createdAt: Date.now() };
+            rooms[code] = { hostId, roomCode: code, players, createdAt: Date.now() };
 
             // Create a mapping of userId to socketId
             if (!rooms[code].userSockets) {
@@ -148,6 +148,46 @@ export function setupSocketIO(io) {
                 io.to(code).emit('game-finished', { finishedPlayers: rooms[code].finishedPlayers });
                 console.log(`Game finished in room: ${code}`);
             }
+        });
+
+        socket.on('set-collection', ({ code, collectionId }) => {
+            if (!rooms[code]) {
+                socket.emit('error', 'Room not found');
+                return;
+            }
+
+            rooms[code].collectionId = collectionId;
+            console.log(`Collection set for room ${code}: ${collectionId}`);
+            io.to(code).emit('collection-changed', rooms[code]);
+        });
+
+        socket.on('close-room', ({ code }) => {
+            if (!rooms[code]) {
+                socket.emit('error', 'Room not found');
+                return;
+            }
+
+            console.log(`Closing room: ${code}`);
+            delete rooms[code];
+            io.to(code).emit('room-closed', { code });
+        });
+
+        socket.on('reset-room', ({ code }) => {
+            if (!rooms[code]) {
+                socket.emit('error', 'Room not found');
+                return;
+            }
+
+            console.log(`Resetting room: ${code}`);
+            const room = rooms[code];
+            room.isStarted = false;
+            room.isFinished = false;
+            room.scores = {};
+            room.finishedPlayers = [];
+            room.players = [room.hostId]; // Reset players to just the host
+            room.userSockets = { [room.hostId]: socket.id }; // Reset userSockets to just the host
+
+            io.to(code).emit('room-reset', room);
         });
 
         socket.on('disconnect', () => {

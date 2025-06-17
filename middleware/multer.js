@@ -99,7 +99,7 @@ export const UploadToSupabase = async (req, res, next) => {
 
         let fileExtension = file.originalname.split(".").pop().toLowerCase();
 
-        if (forceJpeg) {
+        if (forceJpeg === true) {
             console.log("🔄 Converting image to JPEG format");
             const jpgBuffer = await sharp(file.buffer)
                 .jpeg({ quality: 80 })

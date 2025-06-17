@@ -1,9 +1,10 @@
 import { getSupabaseClientWithToken, supabase } from "../config/supabaseClient.js";
 
 export const AddItemToCollection = async (req, res) => {
+    console.log("Adding item to collection:", req.body, req.uploadedImageUrl);
     try {
 
-        const { category, author, uuid, answer, author_id } = req.body;
+        const { category, author, uuid, answer, author_id, author_uuid } = req.body;
 
         if (!category || !author || !req.uploadedImageUrl) {
             return res.status(400).json({ error: "Missing required fields" });
@@ -20,12 +21,17 @@ export const AddItemToCollection = async (req, res) => {
             answer: answer || null
         };
 
+        console.log("Adding item to category:", category, "for author:", author_uuid);
+
+        // convert author_uuid to int8
+        const author_id_int = parseInt(author_id, 10);
+
         // Check if `items` column is NULL and initialize it if needed
         const { data: collection, error: fetchError } = await getSupabaseClientWithToken(token)
             .from("collections")
             .select("items")
             .eq("category", category)
-            .eq("author_id", author_id)
+            .eq("author_id", author_id_int)
             .single();
 
         if (fetchError) {

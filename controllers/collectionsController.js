@@ -217,10 +217,10 @@ export const createNewCollection = async (req, res) => {
             return res.status(401).json({ error: 'No token provided' });
         }
 
-        const { category, author_id, author } = req.body;
+        const { category, author_id, author, author_uuid } = req.body;
 
         // ✅ Validate required fields first
-        if (!category || !author || !author_id) {
+        if (!category || !author || !author_id || !author_uuid) {
             return res.status(400).json({ error: 'Missing category, author, or author_id' });
         }
 
@@ -243,6 +243,7 @@ export const createNewCollection = async (req, res) => {
                 category,
                 author,
                 author_id,
+                author_uuid,
                 items: [],
                 private: true,
                 slug
