@@ -177,7 +177,7 @@ export const RemoveItemFromCollection = async (req, res) => {
             console.error("Error updating collection:", error);
             return res.status(500).json({ error: "Failed to update collection", details: error });
         }
-        res.status(200).json(data);
+        res.status(200).json({ items: updatedItems });
     } catch (err) {
         console.error("Unexpected error:", err);
         res.status(500).json({ error: "Internal Server Error", details: err.message });
