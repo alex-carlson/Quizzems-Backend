@@ -159,7 +159,7 @@ export const getPublicUserCollection = async (req, res) => {
             .from('collections')
             .select('*')
             .eq('slug', collection)
-            .eq('author_id', uid).single();
+            .eq('author_public_id', uid).single();
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -180,15 +180,13 @@ export const getUserCollections = async (req, res) => {
             return res.status(401).json({ error: 'No token provided' });
         }
 
-
-
-        const { data, error } = await getSupabaseClientWithToken(token).from('collections').select('*').eq('author_id', uid);
+        const { data, error } = await getSupabaseClientWithToken(token).from('collections').select('*').eq('author_public_id', uid);
 
         if (error) {
             return res.status(500).json({ error: error.message });
         }
 
-        res.json(data);
+        res.status(200).json(data);
     } catch (err) {
         res.status(500).json({ error: 'Internal Server Error' });
     }
@@ -197,7 +195,7 @@ export const getUserCollections = async (req, res) => {
 export const getAllUserCollections = async (req, res) => {
     try {
         const { uid } = req.params;
-        const { data, error } = await supabase.from('collections').select('*').eq('author_id', uid);
+        const { data, error } = await supabase.from('collections').select('*').eq('public_author_id', uid);
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -242,7 +240,7 @@ export const createNewCollection = async (req, res) => {
             .insert([{
                 category,
                 author,
-                author_id,
+                "author_public_id": author_id,
                 author_uuid,
                 items: [],
                 private: true,
@@ -301,7 +299,7 @@ export const deleteCollection = async (req, res) => {
             return res.status(401).json({ error: 'No token provided' });
         }
 
-        const { data, error } = await getSupabaseClientWithToken(token).from('collections').delete().eq('category', collection).eq('author_id', author_id);
+        const { data, error } = await getSupabaseClientWithToken(token).from('collections').delete().eq('category', collection).eq('author_public_id', author_id);
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -315,7 +313,7 @@ export const deleteCollection = async (req, res) => {
 
 export const setVisible = async (req, res) => {
     try {
-        const { category, author, author_id, visible } = req.body;
+        const { category, author_public_id, visible } = req.body;
         const token = req.headers.authorization?.split(' ')[1];
         if (!token) {
             return res.status(401).json({ error: 'No token provided' });
@@ -325,7 +323,7 @@ export const setVisible = async (req, res) => {
             .from('collections')
             .update({ private: !visible })
             .eq('category', category)
-            .eq('author_id', author_id)
+            .eq('author_public_id', author_public_id)
             .select('*');
 
         if (error) {

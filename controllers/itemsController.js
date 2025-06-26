@@ -1,58 +1,80 @@
 import { getSupabaseClientWithToken, supabase } from "../config/supabaseClient.js";
 
-export const AddItemToCollection = async (req, res) => {
-    console.log("Adding item to collection:", req.body, req.uploadedImageUrl);
+// Helper: Extract token from request
+const getToken = (req) => req.headers.authorization?.split(" ")[1];
+
+// Helper: Fetch collection by category and author_id (if provided)
+const fetchCollection = async (token, category, author_id = null) => {
+    let query = getSupabaseClientWithToken(token)
+        .from("collections")
+        .select("items")
+        .eq("category", category);
+    if (author_id !== null && author_id !== undefined) {
+        query = query.eq("author_id", author_id);
+    }
+    return await query.single();
+};
+
+// Helper: Update collection items by category and author_id (if provided)
+const updateCollectionItems = async (token, category, updatedItems, author_id = null) => {
+    let query = getSupabaseClientWithToken(token)
+        .from("collections")
+        .update({ items: updatedItems })
+        .eq("category", category);
+    if (author_id !== null && author_id !== undefined) {
+        query = query.eq("author_id", author_id);
+    }
+    return await query.select();
+};
+
+// add thumbnail to collection
+export const AddThumbnailToCollection = async (req, res) => {
     try {
 
-        const { category, author, uuid, answer, author_id, author_uuid } = req.body;
-
-        if (!category || !author || !req.uploadedImageUrl) {
-            return res.status(400).json({ error: "Missing required fields" });
-        }
-
-        const token = req.headers.authorization?.split(" ")[1];
+        const token = getToken(req);
         if (!token) {
             return res.status(401).json({ error: "No token provided" });
         }
 
+        // return positively if image is uploaded
+        if (!req.uploadedImageUrl) {
+            return res.status(400).json({ error: "No image uploaded" });
+        }
+
+        return res.status(200).json({ message: "Image uploaded successfully", imageUrl: req.uploadedImageUrl });
+
+    } catch (err) {
+        handleError(res, err);
+    }
+};
+
+export const AddItemToCollection = async (req, res) => {
+    try {
+        const { category, author, uuid, answer, author_id, author_uuid } = req.body;
+        if (!category || !author || !req.uploadedImageUrl) {
+            return res.status(400).json({ error: "Missing required fields" });
+        }
+        const token = getToken(req);
+        if (!token) {
+            return res.status(401).json({ error: "No token provided" });
+        }
         const myItem = {
             id: uuid || null,
             image: req.uploadedImageUrl || null,
             answer: answer || null
         };
-
-        console.log("Adding item to category:", category, "for author:", author_uuid);
-
-        // convert author_uuid to int8
         const author_id_int = parseInt(author_id, 10);
-
-        // Check if `items` column is NULL and initialize it if needed
-        const { data: collection, error: fetchError } = await getSupabaseClientWithToken(token)
-            .from("collections")
-            .select("items")
-            .eq("category", category)
-            .eq("author_id", author_id_int)
-            .single();
-
+        const { data: collection, error: fetchError } = await fetchCollection(token, category, author_id_int);
         if (fetchError) {
             console.error("Error fetching collection:", fetchError);
             return res.status(500).json({ error: "Failed to fetch collection", details: fetchError });
         }
-
         const updatedItems = collection.items ? [...collection.items, myItem] : [myItem];
-
-        const { data, error } = await getSupabaseClientWithToken(token)
-            .from("collections")
-            .update({ items: updatedItems })
-            .eq("category", category)
-            .eq("author_id", author_id)
-            .select();
-
+        const { data, error } = await updateCollectionItems(token, category, updatedItems, author_id);
         if (error) {
             console.error("Error updating collection:", error);
             return res.status(500).json({ error: "Failed to update collection", details: error });
         }
-
         res.status(201).json(data);
     } catch (err) {
         console.error("Unexpected error:", err);
@@ -61,13 +83,12 @@ export const AddItemToCollection = async (req, res) => {
 };
 
 export const AddAudioToCollection = async (req, res) => {
-    console.log("Adding audio to collection:", req.body);
     try {
         const { category, author, uuid, answer, author_id, url } = req.body;
         if (!category || !author || !url) {
             return res.status(400).json({ error: "Missing required fields" });
         }
-        const token = req.headers.authorization?.split(" ")[1];
+        const token = getToken(req);
         if (!token) {
             return res.status(401).json({ error: "No token provided" });
         }
@@ -76,24 +97,13 @@ export const AddAudioToCollection = async (req, res) => {
             audio: url || null,
             answer: answer || null
         };
-        // Check if `items` column is NULL and initialize it if needed
-        const { data: collection, error: fetchError } = await getSupabaseClientWithToken(token)
-            .from("collections")
-            .select("items")
-            .eq("category", category)
-            .eq("author_id", author_id)
-            .single();
+        const { data: collection, error: fetchError } = await fetchCollection(token, category, author_id);
         if (fetchError) {
             console.error("Error fetching collection:", fetchError);
             return res.status(500).json({ error: "Failed to fetch collection", details: fetchError });
         }
         const updatedItems = collection.items ? [...collection.items, myItem] : [myItem];
-        const { data, error } = await getSupabaseClientWithToken(token)
-            .from("collections")
-            .update({ items: updatedItems })
-            .eq("category", category)
-            .eq("author_id", author_id)
-            .select();
+        const { data, error } = await updateCollectionItems(token, category, updatedItems, author_id);
         if (error) {
             console.error("Error updating collection:", error);
             return res.status(500).json({ error: "Failed to update collection", details: error });
@@ -111,7 +121,7 @@ export const AddQuestionToCollection = async (req, res) => {
         if (!category || !author || !question || !answer) {
             return res.status(400).json({ error: "Missing required fields" });
         }
-        const token = req.headers.authorization?.split(" ")[1];
+        const token = getToken(req);
         if (!token) {
             return res.status(401).json({ error: "No token provided" });
         }
@@ -120,27 +130,13 @@ export const AddQuestionToCollection = async (req, res) => {
             question: question || null,
             answer: answer || null
         };
-        // Check if `items` column is NULL and initialize it if needed
-
-        const { data: collection, error: fetchError } = await getSupabaseClientWithToken(token)
-
-
-            .from("collections")
-            .select("items")
-            .eq("category", category)
-            .eq("author_id", author_id)
-            .single();
+        const { data: collection, error: fetchError } = await fetchCollection(token, category, author_id);
         if (fetchError) {
             console.error("Error fetching collection:", fetchError);
             return res.status(500).json({ error: "Failed to fetch collection", details: fetchError });
         }
         const updatedItems = collection.items ? [...collection.items, myItem] : [myItem];
-        const { data, error } = await getSupabaseClientWithToken(token)
-            .from("collections")
-            .update({ items: updatedItems })
-            .eq("category", category)
-            .eq("author_id", author_id)
-            .select();
+        const { data, error } = await updateCollectionItems(token, category, updatedItems, author_id);
         if (error) {
             console.error("Error updating collection:", error);
             return res.status(500).json({ error: "Failed to update collection", details: error });
@@ -148,41 +144,27 @@ export const AddQuestionToCollection = async (req, res) => {
         res.status(201).json(data);
     } catch (err) {
         console.error("Unexpected error:", err);
-
         res.status(500).json({ error: "Internal Server Error", details: err.message });
-
     }
 };
 
 export const RemoveItemFromCollection = async (req, res) => {
     try {
         const { category, itemId } = req.body;
-        const token = req.headers.authorization?.split(" ")[1];
+        const token = getToken(req);
         if (!token) {
             return res.status(401).json({ error: "No token provided" });
         }
-
-        console.log("Removing item from collection:", category, itemId);
-
         if (!category || !itemId) {
             return res.status(400).json({ error: "Missing required fields" });
         }
-
-        const { data: collection, error: fetchError } = await getSupabaseClientWithToken(token)
-            .from("collections")
-            .select("items")
-            .eq("category", category)
-            .single();
-
+        const { data: collection, error: fetchError } = await fetchCollection(token, category);
         if (fetchError) {
             console.error("Error fetching collection:", fetchError);
             return res.status(500).json({ error: "Failed to fetch collection", details: fetchError });
         }
-
         const updatedItems = collection.items.filter((i) => i.id !== itemId);
-
         // also delete the image from storage
-
         const { error: deleteError } = await getSupabaseClientWithToken(token).storage
             .from("uploads")
             .remove([`uploads/${category}/${itemId}`]);
@@ -190,19 +172,11 @@ export const RemoveItemFromCollection = async (req, res) => {
             console.error("Error deleting image from storage:", deleteError);
             return res.status(500).json({ error: "Failed to delete image from storage", details: deleteError });
         }
-
-        const { data, error } = await getSupabaseClientWithToken(token)
-            .from("collections")
-            .update({ items: updatedItems })
-            .eq("category", category)
-            .select();
-
+        const { data, error } = await updateCollectionItems(token, category, updatedItems);
         if (error) {
             console.error("Error updating collection:", error);
             return res.status(500).json({ error: "Failed to update collection", details: error });
         }
-
-        // wait for promise to resolve and then return data
         res.status(200).json(data);
     } catch (err) {
         console.error("Unexpected error:", err);
@@ -213,106 +187,65 @@ export const RemoveItemFromCollection = async (req, res) => {
 export const EditItemInCollection = async (req, res) => {
     try {
         const { collection, id, answer, author_id } = req.body;
-
-        const token = req.headers.authorization?.split(" ")[1];
+        const token = getToken(req);
         if (!token) {
             return res.status(401).json({ error: "No token provided" });
         }
-
-        // find the entry with the matching image and update the text
         if (!collection || !id || !answer) {
             return res.status(400).json({ error: "Missing required fields" });
         }
-
-        const { data, error } = await getSupabaseClientWithToken(token)
-            .from("collections")
-            .select("items")
-            .eq("category", collection)
-            .eq("author_id", author_id)
-            .single();
-
+        const { data, error } = await fetchCollection(token, collection, author_id);
         if (error) {
             console.error("Error updating collection:", error);
             return res.status(500).json({ error: "Failed to update collection", details: error });
-        } else {
-            let items = data.items;
-
-            items = items.map(item =>
-                item.id === id ? { ...item, answer } : item
-            );
-
-            const { error: updateError } = await getSupabaseClientWithToken(token)
-                .from("collections")
-                .update({ items })
-                .eq("category", collection)
-                .eq("author_id", author_id)
-
-            if (updateError) {
-                console.error("Error updating collection:", updateError);
-                return res.status(500).json({ error: "Failed to update collection", details: updateError });
-            } else {
-                res.status(200).json({ message: "Item updated successfully" });
-            }
         }
-    }
-    catch (err) {
+        let items = data.items;
+        items = items.map(item =>
+            item.id === id ? { ...item, answer } : item
+        );
+        const { error: updateError } = await updateCollectionItems(token, collection, items, author_id);
+        if (updateError) {
+            console.error("Error updating collection:", updateError);
+            return res.status(500).json({ error: "Failed to update collection", details: updateError });
+        } else {
+            res.status(200).json({ message: "Item updated successfully" });
+        }
+    } catch (err) {
         console.error("Unexpected error:", err);
         res.status(500).json({ error: "Internal Server Error", details: err.message });
     }
 };
 
-// reorder item in collection
-
 export const ReorderItemInCollection = async (req, res) => {
     try {
-        console.log("Reordering items in collection:", req.body);
         const { category, itemAnswers } = req.body;
-        const token = req.headers.authorization?.split(" ")[1];
+        const token = getToken(req);
         if (!token) {
             return res.status(401).json({ error: "No token provided" });
         }
-
         if (!category || !itemAnswers) {
             return res.status(400).json({ error: "Missing required fields" });
         }
-
-        // sort supabase category items array to match the order of itemAnswers
-        const { data: collection, error: fetchError } = await getSupabaseClientWithToken(token)
-            .from("collections")
-            .select("items")
-            .eq("category", category)
-            .single();
-
+        const { data: collection, error: fetchError } = await fetchCollection(token, category);
         if (fetchError) {
             console.error("Error fetching collection:", fetchError);
             return res.status(500).json({ error: "Failed to fetch collection", details: fetchError });
         }
-
-        // create a map of itemAnswers to their index
         const itemAnswersMap = {};
         itemAnswers.forEach((item, index) => {
             itemAnswersMap[item.id] = index;
         });
-
-        // sort the collection items based on the itemAnswers order
         const updatedItems = collection.items.sort((a, b) => {
             return (itemAnswersMap[a.id] || 0) - (itemAnswersMap[b.id] || 0);
         });
-
-        const { data, error } = await getSupabaseClientWithToken(token)
-            .from("collections")
-            .update({ items: updatedItems })
-            .eq("category", category)
-            .select();
-
+        const { data, error } = await updateCollectionItems(token, category, updatedItems);
         if (error) {
             console.error("Error updating collection:", error);
             return res.status(500).json({ error: "Failed to update collection", details: error });
         }
-
         res.status(200).json(data);
     } catch (err) {
         console.error("Unexpected error:", err);
         res.status(500).json({ error: "Internal Server Error", details: err.message });
     }
-}
+};

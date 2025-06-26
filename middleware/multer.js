@@ -97,6 +97,14 @@ export const UploadToSupabase = async (req, res, next) => {
             return res.status(400).json({ message: "Please upload an image." });
         }
 
+        console.log("🔄 Processing file:", {
+            folder,
+            uuid,
+            bucket,
+            file: file ? file.originalname : "No file",
+            forceJpeg: forceJpeg || false,
+        });
+
         let fileExtension = file.originalname.split(".").pop().toLowerCase();
 
         if (forceJpeg === true) {

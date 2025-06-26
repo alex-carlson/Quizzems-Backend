@@ -5,7 +5,8 @@ import {
     EditItemInCollection,
     ReorderItemInCollection,
     AddAudioToCollection,
-    AddQuestionToCollection
+    AddQuestionToCollection,
+    AddThumbnailToCollection,
 } from '../controllers/itemsController.js';
 import { upload, UploadToSupabase, uploadUrlToSupabase } from '../middleware/multer.js';
 import { contentModeration } from '../middleware/contentModeration.js';
@@ -25,6 +26,7 @@ router.post(
 router.post('/upload-url', verifySupabaseToken, uploadUrlToSupabase, AddItemToCollection);
 router.post('/add-audio', verifySupabaseToken, upload.single('file'), AddAudioToCollection);
 router.post('/add-question', verifySupabaseToken, upload.single('file'), AddQuestionToCollection);
+router.post('/add-thumbnail', verifySupabaseToken, upload.single('file'), UploadToSupabase, AddThumbnailToCollection);
 
 router.post('/remove', verifySupabaseToken, RemoveItemFromCollection);
 router.post('/edit', verifySupabaseToken, EditItemInCollection)
