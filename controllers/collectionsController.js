@@ -287,19 +287,14 @@ export const renameCollection = async (req, res) => {
 
 export const deleteCollection = async (req, res) => {
     try {
-        const { collection, author_id, username } = req.body;
-        console.log("delete body: " + req.body);
-
-        // list all the params
-        console.log("Deleting collection " + collection + " from " + username);
-        console.log("Author ID: " + author_id);
+        const { uid, collectionId } = req.params;
 
         const token = req.headers.authorization?.split(' ')[1];
         if (!token) {
             return res.status(401).json({ error: 'No token provided' });
         }
 
-        const { data, error } = await getSupabaseClientWithToken(token).from('collections').delete().eq('category', collection).eq('author_public_id', author_id);
+        const { data, error } = await getSupabaseClientWithToken(token).from('collections').delete().eq('id', collectionId).eq('author_public_id', uid);
 
         if (error) {
             return res.status(500).json({ error: error.message });

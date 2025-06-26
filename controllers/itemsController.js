@@ -10,7 +10,7 @@ const fetchCollection = async (token, category, author_id = null) => {
         .select("items")
         .eq("category", category);
     if (author_id !== null && author_id !== undefined) {
-        query = query.eq("author_id", author_id);
+        query = query.eq("author_public_id", author_id);
     }
     return await query.single();
 };
@@ -22,7 +22,7 @@ const updateCollectionItems = async (token, category, updatedItems, author_id = 
         .update({ items: updatedItems })
         .eq("category", category);
     if (author_id !== null && author_id !== undefined) {
-        query = query.eq("author_id", author_id);
+        query = query.eq("author_public_id", author_id);
     }
     return await query.select();
 };
@@ -63,8 +63,7 @@ export const AddItemToCollection = async (req, res) => {
             image: req.uploadedImageUrl || null,
             answer: answer || null
         };
-        const author_id_int = parseInt(author_id, 10);
-        const { data: collection, error: fetchError } = await fetchCollection(token, category, author_id_int);
+        const { data: collection, error: fetchError } = await fetchCollection(token, category, author_id);
         if (fetchError) {
             console.error("Error fetching collection:", fetchError);
             return res.status(500).json({ error: "Failed to fetch collection", details: fetchError });
@@ -85,6 +84,7 @@ export const AddItemToCollection = async (req, res) => {
 export const AddAudioToCollection = async (req, res) => {
     try {
         const { category, author, uuid, answer, author_id, url } = req.body;
+        console.log(req.body);
         if (!category || !author || !url) {
             return res.status(400).json({ error: "Missing required fields" });
         }
@@ -218,27 +218,16 @@ export const EditItemInCollection = async (req, res) => {
 
 export const ReorderItemInCollection = async (req, res) => {
     try {
-        const { category, itemAnswers } = req.body;
+        const { category, items, author_id } = req.body;
+        console.log(items);
         const token = getToken(req);
         if (!token) {
             return res.status(401).json({ error: "No token provided" });
         }
-        if (!category || !itemAnswers) {
+        if (!category || !items) {
             return res.status(400).json({ error: "Missing required fields" });
         }
-        const { data: collection, error: fetchError } = await fetchCollection(token, category);
-        if (fetchError) {
-            console.error("Error fetching collection:", fetchError);
-            return res.status(500).json({ error: "Failed to fetch collection", details: fetchError });
-        }
-        const itemAnswersMap = {};
-        itemAnswers.forEach((item, index) => {
-            itemAnswersMap[item.id] = index;
-        });
-        const updatedItems = collection.items.sort((a, b) => {
-            return (itemAnswersMap[a.id] || 0) - (itemAnswersMap[b.id] || 0);
-        });
-        const { data, error } = await updateCollectionItems(token, category, updatedItems);
+        const { data, error } = await updateCollectionItems(token, category, items, author_id);
         if (error) {
             console.error("Error updating collection:", error);
             return res.status(500).json({ error: "Failed to update collection", details: error });

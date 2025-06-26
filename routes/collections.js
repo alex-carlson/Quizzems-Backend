@@ -18,7 +18,7 @@ import verifySupabaseToken from '../middleware/supabaseAuth.js';
 const router = Router();
 
 // DELETE collection (protected)
-router.delete('/:uid/:collection', verifySupabaseToken, deleteCollection);
+router.delete('/:uid/:collectionId', verifySupabaseToken, deleteCollection);
 
 // GET collection by ID (public)
 router.get('/id/:id', verifySupabaseToken, getUserCollectionById);
