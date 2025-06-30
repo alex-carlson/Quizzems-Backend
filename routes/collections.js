@@ -38,7 +38,11 @@ router.post('/renameCollection', verifySupabaseToken, renameCollection);
 router.post('/setVisible', verifySupabaseToken, setVisible);
 
 // GET latest collections (public)
-router.get('/latest', getLatestCollections);
+router.get('/latest', (req, res, next) => {
+  // Pass ?limit=number as req.query.limit to the controller
+  req.limit = req.query.limit ? parseInt(req.query.limit, 10) : undefined;
+  getLatestCollections(req, res, next);
+});
 router.get('/random/:limit', getRandomCollections); // Random collections endpoint
 
 // GET collections by search (public)

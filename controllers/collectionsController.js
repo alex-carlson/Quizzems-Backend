@@ -20,7 +20,7 @@ export const getAllCollections = async (req, res) => {
 export const getLatestCollections = async (req, res) => {
     try {
 
-        const max = 10;
+        const max = req.limit || 12; // Default to 10 if no limit is provided
 
         // get 10 collections from database, ordered by created_at desc
         const { data, error } = await supabase
