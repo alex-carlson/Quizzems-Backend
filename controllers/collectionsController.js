@@ -330,3 +330,42 @@ export const setVisible = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 }
+
+export const updateCollection = async (req, res) => {
+    try {
+        console.log("Updating collection");
+        const { collectionId } = req.params;
+        console.log("Collection ID: " + collectionId);
+        const data = req.body;
+        console.log("Data: ", data);
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) {
+            return res.status(401).json({ error: 'No token provided' });
+        }
+
+        const { private: isPrivate, tags, category, description } = data;
+        const slug = slugify(category, { lower: true, strict: true, trim: true });
+        const last_modified = new Date().toISOString();
+
+        const { data: updatedData, error } = await getSupabaseClientWithToken(token)
+            .from('collections')
+            .update({
+                private: isPrivate,
+                tags,
+                last_modified,
+                category,
+                description,
+                slug
+            })
+            .eq('id', collectionId)
+            .select('*');
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+
+        res.json(updatedData);
+    } catch (err) {
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+}

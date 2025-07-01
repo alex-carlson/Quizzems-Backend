@@ -11,7 +11,8 @@ import {
   renameCollection,
   deleteCollection,
   setVisible,
-  getRandomCollections
+  getRandomCollections,
+  updateCollection
 } from '../controllers/collectionsController.js';
 import verifySupabaseToken from '../middleware/supabaseAuth.js';
 
@@ -33,6 +34,7 @@ router.get('/user/:uid/:collection', getPublicUserCollection);
 router.get('/user/:uid', verifySupabaseToken, getUserCollections);
 
 // POST create, rename, set visibility (all protected)
+router.post('/update/:collectionId', verifySupabaseToken, updateCollection);
 router.post('/createCollection', verifySupabaseToken, createNewCollection);
 router.post('/renameCollection', verifySupabaseToken, renameCollection);
 router.post('/setVisible', verifySupabaseToken, setVisible);
