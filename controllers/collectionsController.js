@@ -195,7 +195,7 @@ export const getUserCollections = async (req, res) => {
 export const getAllUserCollections = async (req, res) => {
     try {
         const { uid } = req.params;
-        const { data, error } = await supabase.from('collections').select('*').eq('public_author_id', uid);
+        const { data, error } = await supabase.from('collections').select('*').eq('author_public_id', uid);
 
         if (error) {
             return res.status(500).json({ error: error.message });

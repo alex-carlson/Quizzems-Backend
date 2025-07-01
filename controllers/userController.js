@@ -14,19 +14,21 @@ export const uploadUserAvatar = (req, res) => {
 export const getUserProfile = async (req, res) => {
     const { uid } = req.params;
     try {
-        // Try matching by `uid` (int8)
+        // Try matching by `id` (uuid)
         let { data, error } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', uid)
             .single();
 
-        // If not found, try matching by `id` (uuid)
-        if (error || !data) {
+        // if this fails, try matching uid with public_id (int8)
+        if (error) {
+            // convert uid to int
+            const publicId = parseInt(uid, 10);
             ({ data, error } = await supabase
                 .from('profiles')
                 .select('*')
-                .eq('id', uid) // uid must be valid UUID format here
+                .eq('public_id', publicId)
                 .single());
         }
 
