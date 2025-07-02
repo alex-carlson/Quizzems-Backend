@@ -459,8 +459,6 @@ export const getAllUserCollections = async (req, res) => {
             console.error('Error fetching user collections:', error);
             return res.status(500).json({ error: error.message });
         }
-
-        console.log(`Returning ${data?.length || 0} collections with thumbnails and itemsLength`);
         res.json(data);
     } catch (err) {
         console.error('Error in getAllUserCollections:', err);
