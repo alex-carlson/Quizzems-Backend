@@ -12,7 +12,8 @@ import {
   deleteCollection,
   setVisible,
   getRandomCollections,
-  updateCollection
+  updateCollection,
+  getPaginatedCollections
 } from '../controllers/collectionsController.js';
 import verifySupabaseToken from '../middleware/supabaseAuth.js';
 
@@ -38,6 +39,7 @@ router.post('/update/:collectionId', verifySupabaseToken, updateCollection);
 router.post('/createCollection', verifySupabaseToken, createNewCollection);
 router.post('/renameCollection', verifySupabaseToken, renameCollection);
 router.post('/setVisible', verifySupabaseToken, setVisible);
+router.post('/page/:page/:limit', getPaginatedCollections);
 
 // GET latest collections (public)
 router.get('/latest', (req, res, next) => {
@@ -46,6 +48,7 @@ router.get('/latest', (req, res, next) => {
   getLatestCollections(req, res, next);
 });
 router.get('/random/:limit', getRandomCollections); // Random collections endpoint
+
 
 // GET collections by search (public)
 router.get('/search', searchCollections);
