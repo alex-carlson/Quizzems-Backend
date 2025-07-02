@@ -392,7 +392,7 @@ export const getPublicUserCollection = async (req, res) => {
         const { data, error } = await supabase
             .from('collections')
             .select('*')
-            .eq('id', collection)
+            .eq('slug', collection)
             .eq('author_public_id', uid).single();
 
         if (error) {
