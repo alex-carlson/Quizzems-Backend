@@ -19,41 +19,43 @@ import verifySupabaseToken from '../middleware/supabaseAuth.js';
 
 const router = Router();
 
-// DELETE collection (protected)
-router.delete('/:uid/:collectionId', verifySupabaseToken, deleteCollection);
-
-// GET collection by ID (public)
+// GET collection by ID (public) - Most specific first
 router.get('/id/:id', verifySupabaseToken, getUserCollectionById);
 
-// GET all collections of a user (public - all)
-router.get('/user/:uid/all', getAllUserCollections);
+// GET latest collections (public) - Static routes before dynamic
+router.get('/latest', (req, res, next) => {
+  req.limit = req.query.limit ? parseInt(req.query.limit, 10) : undefined;
+  getLatestCollections(req, res, next);
+});
 
-// GET a public user collection
+// GET random collections (public) - Static routes before dynamic
+router.get('/random/:limit', getRandomCollections);
+
+// GET collections by search (public) - Static routes before dynamic
+router.get('/search', searchCollections);
+
+// GET all collections of a user (public - all) - Specific user routes before general
+router.get('/user/all/:uid', getAllUserCollections);
+
+// GET a public user collection - More specific than /user/:uid
 router.get('/user/:uid/:collection', getPublicUserCollection);
 
-// GET all collections of a user (protected)
+// GET all collections of a user (protected) - Less specific user route
 router.get('/user/:uid', verifySupabaseToken, getUserCollections);
+
+// POST paginated collections
+router.post('/page/:page/:limit', getPaginatedCollections);
 
 // POST create, rename, set visibility (all protected)
 router.post('/update/:collectionId', verifySupabaseToken, updateCollection);
 router.post('/createCollection', verifySupabaseToken, createNewCollection);
 router.post('/renameCollection', verifySupabaseToken, renameCollection);
 router.post('/setVisible', verifySupabaseToken, setVisible);
-router.post('/page/:page/:limit', getPaginatedCollections);
 
-// GET latest collections (public)
-router.get('/latest', (req, res, next) => {
-  // Pass ?limit=number as req.query.limit to the controller
-  req.limit = req.query.limit ? parseInt(req.query.limit, 10) : undefined;
-  getLatestCollections(req, res, next);
-});
-router.get('/random/:limit', getRandomCollections); // Random collections endpoint
+// DELETE collection (protected)
+router.delete('/:uid/:collectionId', verifySupabaseToken, deleteCollection);
 
-
-// GET collections by search (public)
-router.get('/search', searchCollections);
-
-// GET all collections (public, static route)
+// GET all collections (public, static route) - Most general route last
 router.get('/', getAllCollections);
 
 export default router;

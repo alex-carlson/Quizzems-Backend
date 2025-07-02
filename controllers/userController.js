@@ -66,6 +66,39 @@ export const createUserProfile = async (req, res) => {
     }
 }
 
+export const changeUsername = async (req, res) => {
+    const { userId, username } = req.body;
+
+    console.log("Changing username for userId:", userId, "to username:", username);
+
+    if (!userId || !username) {
+        return res.status(400).json({ error: 'User ID and username are required' });
+    }
+
+    try {
+        const { data, error } = await supabase
+            .from('profiles')
+            .update({ username })
+            .eq('id', userId)
+            .select()
+            .single();
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+
+        // also loop through collections and update the author to username
+        const { error: collectionError } = await supabase
+            .from('collections')
+            .update({ author: username })
+            .eq('author_uuid', userId);
+
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+}
+
 export const getUsernames = async (req, res) => {
     try {
         const { data, error } = await supabase.from('profiles').select('username, bio, id, quizzes_completed');

@@ -1,178 +1,29 @@
 import { supabase, getSupabaseClientWithToken } from '../config/supabaseClient.js';
 import slugify from 'slugify';
-
-// Helper: Transform collection data to include items count and remove items array
-const transformCollectionData = (data, includeThumbnail = false) => {
-    if (!data || !Array.isArray(data)) {
-        console.log("Transform data is null or not an array:", data);
-        return [];
-    }
-    return data.map(collection => ({
-        ...collection,
-        itemsLength: collection.items ? collection.items.length : 0,
-        thumbnail: includeThumbnail ? null : undefined, // Placeholder for thumbnail, will be populated async if needed
-        items: undefined // Remove items array to keep response lean
-    }));
-};
-
-// Helper: Transform collection data with thumbnails (async version)
-const transformCollectionDataWithThumbnails = async (data) => {
-    if (!data || !Array.isArray(data)) {
-        console.log("Transform data is null or not an array:", data);
-        return [];
-    }
-
-    const transformedData = await Promise.all(data.map(async (collection) => {
-        const thumbnail = await getCollectionThumbnail(collection);
-        return {
-            ...collection,
-            itemsLength: collection.items ? collection.items.length : 0,
-            thumbnail,
-            items: undefined // Remove items array to keep response lean
-        };
-    }));
-
-    return transformedData;
-};
-
-// Helper: Filter collections by search term in title (category) or tags
-const filterCollections = (collections, filter) => {
-    if (!collections || !Array.isArray(collections)) {
-        return [];
-    }
-
-    if (!filter || filter.trim() === '') {
-        console.log("No filter provided, returning all collections");
-        return collections;
-    }
-
-    const searchTerm = filter.toLowerCase().trim();
-
-    const filtered = collections.filter(collection => {
-        if (!collection) {
-            console.log("Skipping null/undefined collection");
-            return false;
-        }
-
-        // Check if search term is CONTAINED in category (title)
-        const titleMatch = collection.category &&
-            typeof collection.category === 'string' &&
-            collection.category.toLowerCase().includes(searchTerm);
-
-        // Check if search term is CONTAINED in any of the tags
-        const tagsMatch = collection.tags &&
-            Array.isArray(collection.tags) &&
-            collection.tags.some(tag =>
-                tag && typeof tag === 'string' && tag.toLowerCase().includes(searchTerm)
-            );
-
-        const matches = titleMatch || tagsMatch;
-
-        if (matches) {
-            console.log(`Collection "${collection.category}" matches filter "${searchTerm}"`);
-        }
-
-        return matches;
-    });
-
-    return filtered;
-};
-
-// Helper: Get collections with items count
-const getCollectionsWithItemsCount = async (query, selectFields = 'category, author, author_public_id, slug, created_at, items, tags', includeThumbnails = false) => {
-    // First get collections with items for counting
-    const { data, error } = await query.select(selectFields);
-
-    if (error) {
-        console.log("Query error:", error);
-        return { data: null, error };
-    }
-
-    if (!data) {
-        console.log("No data returned from query");
-        return { data: [], error: null };
-    }
-
-    // Transform data to include items count and optionally thumbnails
-    let transformedData;
-    if (includeThumbnails) {
-        transformedData = await transformCollectionDataWithThumbnails(data);
-    } else {
-        transformedData = transformCollectionData(data);
-    }
-
-    return { data: transformedData, error: null };
-};
-
-// Helper: Get collection thumbnail with fallback logic
-const getCollectionThumbnail = async (collection) => {
-    if (!collection || !collection.author || !collection.category) {
-        return null;
-    }
-
-    // First, try to get the dedicated thumbnail from storage
-    const thumbnailPath = `${collection.author}/${collection.category}/thumbnail.jpg`;
-
-    try {
-        // Get the public URL for the thumbnail
-        const { data: thumbnailData } = supabase.storage
-            .from('uploads')
-            .getPublicUrl(thumbnailPath);
-
-        if (thumbnailData?.publicUrl) {
-            // Validate if the thumbnail actually exists by making a HEAD request
-            try {
-                const response = await fetch(thumbnailData.publicUrl, { method: 'HEAD' });
-                if (response.ok) {
-                    return thumbnailData.publicUrl;
-                }
-            } catch (fetchError) {
-                console.log(`Thumbnail validation failed for ${thumbnailPath}:`, fetchError.message);
-            }
-        }
-    } catch (storageError) {
-        console.log(`Storage error for thumbnail ${thumbnailPath}:`, storageError.message);
-    }
-
-    // Fallback: try to get the first item's image
-    if (collection.items && Array.isArray(collection.items) && collection.items.length > 0) {
-        const firstItem = collection.items[0];
-        if (firstItem && firstItem.image) {
-            return firstItem.image;
-        }
-    }
-
-    // No thumbnail found
-    console.log(`No thumbnail found for collection ${collection.category}`);
-    return null;
-};
-
-// Helper: Add thumbnails to existing collection data
-const addThumbnailsToCollections = async (collections) => {
-    if (!collections || !Array.isArray(collections)) {
-        return collections;
-    }
-
-    const collectionsWithThumbnails = await Promise.all(collections.map(async (collection) => {
-        const thumbnail = await getCollectionThumbnail(collection);
-        return {
-            ...collection,
-            thumbnail
-        };
-    }));
-
-    return collectionsWithThumbnails;
-};
+import {
+    transformCollectionData,
+    transformCollectionDataWithThumbnails,
+    filterCollections,
+    getCollectionsWithItemsCount,
+    getCollectionThumbnail,
+    addThumbnailsToCollections
+} from '../utils/collectionHelpers.js';
 
 export const getAllCollections = async (req, res) => {
     try {
-        const { data, error } = await supabase
+        const selection = 'category, author, author_public_id, slug, created_at, items, tags';
+        const query = supabase
             .from('collections')
-            .select('*')
+            .select(selection)
             .eq('private', false);
+
+        const { data, error } = await getCollectionsWithItemsCount(query, selection, true);
+
         if (error) {
             return res.status(500).json({ error: error.message });
         }
+
+        console.log("All collections data:", data);
 
         res.json(data);
     } catch (err) {
@@ -238,15 +89,17 @@ export const getRandomCollections = async (req, res) => {
         }
         const max = parseInt(limit, 10);
 
-        // get all public collections
-        const { data, error } = await supabase
+        // Get all public collections with thumbnails
+        const query = supabase
             .from('collections')
-            .select('*')
             .eq('private', false);
+
+        const { data, error } = await getCollectionsWithItemsCount(query, 'category, author, author_public_id, slug, created_at, items, tags', true);
 
         if (error) {
             return res.status(500).json({ error: error.message });
         }
+
         // Shuffle the data array
         const shuffledData = data.sort(() => 0.5 - Math.random());
         // Slice the first max items
@@ -447,12 +300,13 @@ export const searchCollections = async (req, res) => {
     try {
         const { searchTerm } = req.query;
 
-        // Step 1: Get matching results
-        const { data: matching, error: matchError } = await supabase
+        // Step 1: Get matching results with thumbnails
+        const matchingQuery = supabase
             .from('collections')
-            .select('*')
             .eq('private', false)
             .or(`category.ilike.%${searchTerm}%,author.ilike.%${searchTerm}%`);
+
+        const { data: matching, error: matchError } = await getCollectionsWithItemsCount(matchingQuery, 'category, author, author_public_id, slug, created_at, items, tags', true);
 
         if (matchError) {
             return res.status(500).json({ error: matchError.message });
@@ -466,12 +320,13 @@ export const searchCollections = async (req, res) => {
         // Step 2: Fetch additional non-matching results to fill to 10
         const excludeIds = matching.map(item => item.id); // assume you have `id` field
 
-        const { data: filler, error: fillerError } = await supabase
+        const fillerQuery = supabase
             .from('collections')
-            .select('*')
             .eq('private', false)
             .not('id', 'in', `(${excludeIds.join(',')})`)
             .limit(10 - matching.length);
+
+        const { data: filler, error: fillerError } = await getCollectionsWithItemsCount(fillerQuery, 'category, author, author_public_id, slug, created_at, items, tags', true);
 
         if (fillerError) {
             return res.status(500).json({ error: fillerError.message });
@@ -504,7 +359,9 @@ export const getUserCollectionById = async (req, res) => {
             return res.status(500).json({ error: error.message });
         }
 
-        res.status(200).json(data);
+        // Add thumbnail to single collection
+        const collectionWithThumbnail = await addThumbnailsToCollections([data]);
+        res.status(200).json(collectionWithThumbnail[0]);
     } catch (err) {
         res.status(500).json({ error: 'Internal Server Error' });
     }
@@ -519,7 +376,9 @@ export const getUserCollection = async (req, res) => {
             return res.status(500).json({ error: error.message });
         }
 
-        res.json(data);
+        // Add thumbnail to single collection
+        const collectionWithThumbnail = await addThumbnailsToCollections([data]);
+        res.json(collectionWithThumbnail[0]);
     } catch (err) {
         res.status(500).json({ error: 'Internal Server Error' });
     }
@@ -538,7 +397,9 @@ export const getPublicUserCollection = async (req, res) => {
             return res.status(500).json({ error: error.message });
         }
 
-        res.json(data);
+        // Add thumbnail to single collection
+        const collectionWithThumbnail = await addThumbnailsToCollections([data]);
+        res.json(collectionWithThumbnail[0]);
     } catch (err) {
         res.status(500).json({ error: 'Internal Server Error' });
     }
@@ -553,7 +414,12 @@ export const getUserCollections = async (req, res) => {
             return res.status(401).json({ error: 'No token provided' });
         }
 
-        const { data, error } = await getSupabaseClientWithToken(token).from('collections').select('*').eq('author_public_id', uid);
+        const query = getSupabaseClientWithToken(token)
+            .from('collections')
+            .eq('author_public_id', uid)
+            .eq('private', false);
+
+        const { data, error } = await getCollectionsWithItemsCount(query, 'category, author, author_public_id, slug, created_at, items, tags', true);
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -568,14 +434,36 @@ export const getUserCollections = async (req, res) => {
 export const getAllUserCollections = async (req, res) => {
     try {
         const { uid } = req.params;
-        const { data, error } = await supabase.from('collections').select('*').eq('author_public_id', uid);
+        const { sortBy = 'created_at', sortOrder = 'desc' } = req.query;
+
+        // Validate sort parameters
+        const validSortFields = ['created_at', 'category', 'items'];
+        const validSortOrders = ['asc', 'desc'];
+
+        const sortField = validSortFields.includes(sortBy) ? sortBy : 'created_at';
+        const order = validSortOrders.includes(sortOrder) ? sortOrder : 'desc';
+        const ascending = order === 'asc';
+
+        // Use the helper function to get collections with items count and thumbnails
+        const selection = 'category, author, author_public_id, slug, created_at, items, tags, private, description';
+        const query = supabase
+            .from('collections')
+            .select(selection)
+            .eq('author_public_id', uid)
+            .eq('private', false)
+            .order(sortField, { ascending });
+
+        const { data, error } = await getCollectionsWithItemsCount(query, selection, true);
 
         if (error) {
+            console.error('Error fetching user collections:', error);
             return res.status(500).json({ error: error.message });
         }
 
+        console.log(`Returning ${data?.length || 0} collections with thumbnails and itemsLength`);
         res.json(data);
     } catch (err) {
+        console.error('Error in getAllUserCollections:', err);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
