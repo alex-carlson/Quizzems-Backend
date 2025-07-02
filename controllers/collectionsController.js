@@ -385,12 +385,14 @@ export const getUserCollection = async (req, res) => {
 };
 
 export const getPublicUserCollection = async (req, res) => {
+    console.log("Fetching public user collection");
     try {
         const { uid, collection } = req.params;
+        console.log("Fetching collection:", collection, "for user with UID:", uid);
         const { data, error } = await supabase
             .from('collections')
             .select('*')
-            .eq('slug', collection)
+            .eq('id', collection)
             .eq('author_public_id', uid).single();
 
         if (error) {
@@ -414,16 +416,27 @@ export const getUserCollections = async (req, res) => {
             return res.status(401).json({ error: 'No token provided' });
         }
 
+        console.log("Fetching collections for user with UID:", uid);
+
+        const selection = 'category, author, author_public_id, slug, created_at, items, tags, id';
+
         const query = getSupabaseClientWithToken(token)
             .from('collections')
-            .eq('author_public_id', uid)
-            .eq('private', false);
+            .select(selection)
+            .eq('author_public_id', uid);
 
-        const { data, error } = await getCollectionsWithItemsCount(query, 'category, author, author_public_id, slug, created_at, items, tags', true);
+        const { data, error } = await getCollectionsWithItemsCount(query, selection, true);
 
         if (error) {
             return res.status(500).json({ error: error.message });
         }
+
+        // add items to data
+        if (!data || data.length === 0) {
+            return res.status(404).json({ error: 'No collections found for this user' });
+        }
+
+
 
         res.status(200).json(data);
     } catch (err) {
