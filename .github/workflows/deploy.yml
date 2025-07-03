@@ -14,6 +14,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Check SSH key size
+        run: |
+          echo "Key file size: $(wc -c < ~/.ssh/id_ed25519)"
+
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
