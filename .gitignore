@@ -4,3 +4,4 @@ uploads
 compressed
 .env
 package-lock.json
+login.pem
