@@ -26,6 +26,6 @@ jobs:
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
             cd ${{ secrets.EC2_PATH }} &&
             git pull origin main &&
-            npm install &&
-            pm2 restart app || pm2 start server.js --name app
+            npm install --production &&
+            pm2 restart expxress-app || pm2 start server.js --name expxress-app
           "
