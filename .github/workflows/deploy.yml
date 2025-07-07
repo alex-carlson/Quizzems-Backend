@@ -21,6 +21,10 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           head -n 2 ~/.ssh/id_ed25519
   
+      - name: Test EC2 Host Reachability
+        run: |
+          ping -c 4 ${{ secrets.EC2_HOST }} || echo "Ping failed"
+          ssh-keyscan -v -H ${{ secrets.EC2_HOST }}
 
       - name: Setup SSH
         run: |
