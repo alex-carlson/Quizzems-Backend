@@ -38,7 +38,7 @@ router.get('/search', searchCollections);
 router.get('/user/all/:uid', getAllUserCollections);
 
 // GET a public user collection - More specific than /user/:uid
-router.get('/user/:uid/:collection', getPublicUserCollection);
+router.get('/user/public/:collectionId', getPublicUserCollection);
 
 // GET all collections of a user (protected) - Less specific user route
 router.get('/user/:uid', verifySupabaseToken, getUserCollections);

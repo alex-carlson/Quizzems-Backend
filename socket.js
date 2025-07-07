@@ -45,6 +45,7 @@ export function setupSocketIO(io) {
             rooms[code].isStarted = false;
             rooms[code].isFinished = false;
             rooms[code].scores = {};
+            rooms[code].cards = {};
             rooms[code].finishedPlayers = [];
             rooms[code].players = rooms[code].players || [];
             socket.join(code);
@@ -117,8 +118,13 @@ export function setupSocketIO(io) {
 
             rooms[code].scores ??= {};
             rooms[code].scores[playerId] = (rooms[code].scores[playerId] || 0) + 1;
+            // add to rooms[code].cards[cardIndex], and set the value to playerId
+            if (!rooms[code].cards) {
+                rooms[code].cards = {};
+            }
+            rooms[code].cards[cardIndex] = playerId;
 
-            io.to(code).emit('score-updated', { scores: rooms[code].scores, cardIndex, playerId });
+            io.to(code).emit('score-updated', { scores: rooms[code].scores, cardIndex, playerId, cards: rooms[code].cards });
         });
 
 

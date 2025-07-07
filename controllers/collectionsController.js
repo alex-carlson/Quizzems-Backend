@@ -35,7 +35,7 @@ export const getLatestCollections = async (req, res) => {
     try {
         const max = req.limit || 12;
 
-        const selection = 'category, author, author_public_id, slug, created_at, items';
+        const selection = 'id, category, author, author_public_id, slug, created_at, items';
 
         const query = supabase
             .from('collections')
@@ -60,13 +60,16 @@ export const getLatestCollectionsWithThumbnails = async (req, res) => {
     try {
         const max = req.params.limit || 12;
 
+        const selection = 'id, category, author, author_public_id, slug, created_at, items, tags';
+
         const query = supabase
             .from('collections')
+            .select(selection)
             .eq('private', false)
             .order('created_at', { ascending: false })
             .limit(max);
 
-        const { data, error } = await getCollectionsWithItemsCount(query, 'category, author, author_public_id, slug, created_at, items, tags', true);
+        const { data, error } = await getCollectionsWithItemsCount(query, selection, true);
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -88,13 +91,15 @@ export const getRandomCollections = async (req, res) => {
             limit = 10;
         }
         const max = parseInt(limit, 10);
+        const selection = 'id, category, author, author_public_id, slug, created_at, items, tags';
 
         // Get all public collections with thumbnails
         const query = supabase
             .from('collections')
+            .select(selection)
             .eq('private', false);
 
-        const { data, error } = await getCollectionsWithItemsCount(query, 'category, author, author_public_id, slug, created_at, items, tags', true);
+        const { data, error } = await getCollectionsWithItemsCount(query, selection, true);
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -143,7 +148,7 @@ export const getPaginatedCollections = async (req, res) => {
         if (countError) {
             return res.status(500).json({ error: countError.message });
         }        // Special handling for size sorting (items array length)
-        const selection = 'category, author, author_public_id, slug, created_at, items, tags';
+        const selection = 'id, category, author, author_public_id, slug, created_at, items, tags';
         if (sortMode === "size") {
             // For size sorting, we need to get all data and sort in JavaScript
             // since we can't sort by array length directly in Supabase
@@ -300,15 +305,19 @@ export const searchCollections = async (req, res) => {
     try {
         const { searchTerm } = req.query;
 
+        const selection = 'id, category, author, author_public_id, slug, created_at, items, tags';
+
         // Step 1: Get matching results with thumbnails
         const matchingQuery = supabase
             .from('collections')
+            .select(selection)
             .eq('private', false)
-            .or(`category.ilike.%${searchTerm}%,author.ilike.%${searchTerm}%`);
+            .or(`category.ilike.%${searchTerm}%,tags.ilike.%${searchTerm}%`);
 
-        const { data: matching, error: matchError } = await getCollectionsWithItemsCount(matchingQuery, 'category, author, author_public_id, slug, created_at, items, tags', true);
+        const { data: matching, error: matchError } = await getCollectionsWithItemsCount(matchingQuery, selection, true);
 
         if (matchError) {
+            console.error('Error fetching matching collections:', matchError);
             return res.status(500).json({ error: matchError.message });
         }
 
@@ -322,11 +331,12 @@ export const searchCollections = async (req, res) => {
 
         const fillerQuery = supabase
             .from('collections')
+            .select(selection)
             .eq('private', false)
             .not('id', 'in', `(${excludeIds.join(',')})`)
             .limit(10 - matching.length);
 
-        const { data: filler, error: fillerError } = await getCollectionsWithItemsCount(fillerQuery, 'category, author, author_public_id, slug, created_at, items, tags', true);
+        const { data: filler, error: fillerError } = await getCollectionsWithItemsCount(fillerQuery, selection, true);
 
         if (fillerError) {
             return res.status(500).json({ error: fillerError.message });
@@ -334,6 +344,7 @@ export const searchCollections = async (req, res) => {
 
         // Combine search results with filler and send
         const combined = [...matching, ...filler];
+
         res.json(combined);
     } catch (err) {
         res.status(500).json({ error: 'Internal Server Error' });
@@ -387,13 +398,14 @@ export const getUserCollection = async (req, res) => {
 export const getPublicUserCollection = async (req, res) => {
     console.log("Fetching public user collection");
     try {
-        const { uid, collection } = req.params;
-        console.log("Fetching collection:", collection, "for user with UID:", uid);
+        const { collectionId } = req.params;
+        console.log("Fetching collection:", collectionId);
         const { data, error } = await supabase
             .from('collections')
             .select('*')
-            .eq('slug', collection)
-            .eq('author_public_id', uid).single();
+            .eq('id', collectionId)
+            .eq('private', false)
+            .single();
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -458,7 +470,7 @@ export const getAllUserCollections = async (req, res) => {
         const ascending = order === 'asc';
 
         // Use the helper function to get collections with items count and thumbnails
-        const selection = 'category, author, author_public_id, slug, created_at, items, tags, private, description';
+        const selection = 'id, category, author, author_public_id, slug, created_at, items, tags, private, description';
         const query = supabase
             .from('collections')
             .select(selection)
