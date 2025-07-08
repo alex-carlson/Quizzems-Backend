@@ -379,6 +379,37 @@ export const getUserCollectionById = async (req, res) => {
     }
 };
 
+export const getUserCollectionId = async (req, res) => {
+    try {
+        const { uid, slug } = req.params;
+        console.log("Fetching collection ID for user:", uid, "with slug:", slug);
+        const token = req.headers.authorization?.split(' ')[1];
+
+        if (!token) {
+            return res.status(401).json({ error: 'No token provided' });
+        }
+
+        const { data, error } = await getSupabaseClientWithToken(token)
+            .from('collections')
+            .select('id')
+            .eq('author_public_id', uid)
+            .eq('slug', slug)
+            .single();
+        if (error) {
+            console.error('Error fetching collection ID:', error);
+            return res.status(500).json({ error: error.message });
+        }
+        if (!data) {
+            return res.status(404).json({ error: 'Collection not found' });
+        }
+        console.log("Found collection ID:", data.id);
+        res.status(200).json({ id: data.id });
+    } catch (err) {
+        console.error('Error in getUserCollectionId:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
 export const getUserCollection = async (req, res) => {
     try {
         const { username, collection } = req.params;
