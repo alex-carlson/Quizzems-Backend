@@ -45,7 +45,7 @@ router.get('/user/public/:collectionId', getPublicUserCollection);
 router.get('/user/collection/:id', verifySupabaseToken, getUserCollectionById);
 
 // GET collection id from user and slug
-router.get('/user/collection/:uid/:slug', verifySupabaseToken, getUserCollectionId);
+router.get('/user/collection/:uid/:slug', getUserCollectionId);
 
 // GET all collections of a user (protected) - Less specific user route
 router.get('/user/:uid', verifySupabaseToken, getUserCollections);

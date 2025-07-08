@@ -378,18 +378,15 @@ export const getUserCollectionById = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
-
 export const getUserCollectionId = async (req, res) => {
     try {
         const { uid, slug } = req.params;
         console.log("Fetching collection ID for user:", uid, "with slug:", slug);
-        const token = req.headers.authorization?.split(' ')[1];
 
-        if (!token) {
-            return res.status(401).json({ error: 'No token provided' });
-        }
+        // No token required, use public supabase client
+        console.log("finding collection with author_public_id:", uid, "and slug:", slug);
 
-        const { data, error } = await getSupabaseClientWithToken(token)
+        const { data, error } = await supabase
             .from('collections')
             .select('id')
             .eq('author_public_id', uid)
