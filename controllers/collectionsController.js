@@ -355,6 +355,7 @@ export const searchCollections = async (req, res) => {
 export const getUserCollectionById = async (req, res) => {
     try {
         const { id } = req.params;
+        console.log("Fetching collection by ID:", id);
         const token = req.headers.authorization?.split(' ')[1];
         if (!token) {
             return res.status(401).json({ error: 'No token provided' });
