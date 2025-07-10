@@ -101,7 +101,7 @@ export const changeUsername = async (req, res) => {
 
 export const getUsernames = async (req, res) => {
     try {
-        const { data, error } = await supabase.from('profiles').select('username, bio, id, quizzes_completed');
+        const { data, error } = await supabase.from('profiles').select('username, bio, id, public_id, quizzes_completed');
 
         if (error) {
             return res.status(500).json({ error: error.message });
