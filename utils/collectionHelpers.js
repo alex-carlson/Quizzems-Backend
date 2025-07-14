@@ -3,7 +3,6 @@ import { supabase } from '../config/supabaseClient.js';
 // Helper: Transform collection data to include items count and remove items array
 export const transformCollectionData = (data, includeThumbnail = false) => {
     if (!data || !Array.isArray(data)) {
-        console.log("Transform data is null or not an array:", data);
         return [];
     }
     return data.map(collection => ({
@@ -17,7 +16,6 @@ export const transformCollectionData = (data, includeThumbnail = false) => {
 // Helper: Transform collection data with thumbnails (async version)
 export const transformCollectionDataWithThumbnails = async (data) => {
     if (!data || !Array.isArray(data)) {
-        console.log("Transform data is null or not an array:", data);
         return [];
     }
 
@@ -41,7 +39,6 @@ export const filterCollections = (collections, filter) => {
     }
 
     if (!filter || filter.trim() === '') {
-        console.log("No filter provided, returning all collections");
         return collections;
     }
 
@@ -49,7 +46,6 @@ export const filterCollections = (collections, filter) => {
 
     const filtered = collections.filter(collection => {
         if (!collection) {
-            console.log("Skipping null/undefined collection");
             return false;
         }
 
@@ -67,10 +63,6 @@ export const filterCollections = (collections, filter) => {
 
         const matches = titleMatch || tagsMatch;
 
-        if (matches) {
-            console.log(`Collection "${collection.category}" matches filter "${searchTerm}"`);
-        }
-
         return matches;
     });
 
@@ -83,12 +75,10 @@ export const getCollectionsWithItemsCount = async (query, selectFields = 'catego
     const { data, error } = await query.select(selectFields);
 
     if (error) {
-        console.log("Query error:", error);
         return { data: null, error };
     }
 
     if (!data) {
-        console.log("No data returned from query");
         return { data: [], error: null };
     }
 
@@ -141,8 +131,6 @@ export const getCollectionThumbnail = async (collection) => {
         }
     }
 
-    // No thumbnail found
-    console.log(`No thumbnail found for collection ${collection.category}`);
     return null;
 };
 

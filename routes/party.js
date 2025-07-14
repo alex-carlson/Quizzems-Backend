@@ -12,7 +12,6 @@ function generateCode() {
 router.post('/host', createParty);
 router.post('/join', joinParty);
 router.get('/:code/players', (req, res) => {
-    console.log('Fetching players for room code:', req.params.code);
     const code = req.params.code;
     const room = rooms[code];
     if (!room) {

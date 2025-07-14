@@ -9,7 +9,6 @@ function generateRoomCode() {
 
 export function createParty(req, res) {
     const { collectionId, userId } = req.body;
-    console.log('Creating party with collectionId:', collectionId, 'and userId:', userId);
     let code;
     do {
         code = generateRoomCode();
@@ -20,8 +19,6 @@ export function createParty(req, res) {
         collectionId,
         players: [userId]
     };
-
-    console.log(rooms);
 
     res.json(rooms[code]);
 }

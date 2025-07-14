@@ -31,8 +31,6 @@ export function setupSocketIO(io) {
                 code = generateRoomCode();
             } while (rooms[code]);
 
-            console.log(`Creating room with code: ${code} for user: ${user.user.id}`);
-
             const hostId = user.user.id;
             const players = [hostId];
             rooms[code] = { hostId, roomCode: code, players, createdAt: Date.now() };
@@ -87,15 +85,12 @@ export function setupSocketIO(io) {
             }
             rooms[code].userSockets[playerId] = socket.id;
 
-            console.log(`Player ${playerId} joined room: ${code}`);
             io.to(code).emit('room-update', rooms[code]);
             socket.emit('joined-room', { code, room: rooms[code] });
         });
 
         // on start game event, set isStarted to true
         socket.on('start-game', (code) => {
-            console.log(`Start game requested for room: ${code}`);
-            console.log(rooms[code]);
             if (!rooms[code]) {
                 socket.emit('error', 'Room not found');
                 return;
@@ -106,7 +101,6 @@ export function setupSocketIO(io) {
         });
 
         socket.on('score-point', ({ code, playerId, cardIndex }) => {
-            console.log(`Scoring point for player ${playerId} in room: ${code}`);
             // if playerId is undefined, use socket.id
             if (!playerId) {
                 playerId = Object.keys(rooms[code].userSockets || {}).find(id => rooms[code].userSockets[id] === socket.id);
@@ -142,7 +136,6 @@ export function setupSocketIO(io) {
                 rooms[code].finishedPlayers.push(playerId);
             }
 
-            console.log(`Player ${playerId} has given up in room: ${code}`);
             io.to(code).emit('player-gave-up', { playerId, finishedPlayers: rooms[code].finishedPlayers });
 
 
@@ -152,7 +145,6 @@ export function setupSocketIO(io) {
             if (rooms[code].finishedPlayers.length === rooms[code].players.length) {
                 rooms[code].isFinished = true;
                 io.to(code).emit('game-finished', { finishedPlayers: rooms[code].finishedPlayers });
-                console.log(`Game finished in room: ${code}`);
             }
         });
 
@@ -163,7 +155,6 @@ export function setupSocketIO(io) {
             }
 
             rooms[code].collectionId = collectionId;
-            console.log(`Collection set for room ${code}: ${collectionId}`);
             io.to(code).emit('collection-changed', rooms[code]);
         });
 
@@ -173,7 +164,6 @@ export function setupSocketIO(io) {
                 return;
             }
 
-            console.log(`Closing room: ${code}`);
             delete rooms[code];
             io.to(code).emit('room-closed', { code });
         });
@@ -184,7 +174,6 @@ export function setupSocketIO(io) {
                 return;
             }
 
-            console.log(`Resetting room: ${code}`);
             const room = rooms[code];
             room.isStarted = false;
             room.isFinished = false;
@@ -230,14 +219,12 @@ export function setupSocketIO(io) {
                 });
 
                 if (changed) {
-                    console.log(`User(s) ${disconnectedUserIds.join(', ')} disconnected from room: ${code}`);
                     io.to(code).emit('room-update', room);
                 }
 
                 // Optional cleanup: delete room if empty
                 if (room.players.length === 0) {
                     delete rooms[code];
-                    console.log(`Room ${code} deleted due to no players remaining.`);
                 }
             }
         });

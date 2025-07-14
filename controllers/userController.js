@@ -12,14 +12,14 @@ export const uploadUserAvatar = (req, res) => {
     }
 }
 
-export const getUserProfileFromUsername = async (req, res) => {
-    const { username } = req.params;
+export const getUserProfileFromUsernameSlug = async (req, res) => {
+    const { usernameSlug } = req.params;
 
     try {
         const { data, error } = await supabase
             .from('profiles')
             .select('*')
-            .eq('username', username)
+            .eq('username_slug', usernameSlug)
             .single();
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -136,8 +136,6 @@ export const createUserProfile = async (req, res) => {
 export const changeUsername = async (req, res) => {
     const { userId, username } = req.body;
 
-    console.log("Changing username for userId:", userId, "to username:", username);
-
     if (!userId || !username) {
         return res.status(400).json({ error: 'User ID and username are required' });
     }
@@ -208,7 +206,7 @@ export const changeUsername = async (req, res) => {
 
 export const getUsernames = async (req, res) => {
     try {
-        const { data, error } = await supabase.from('profiles').select('username, bio, id, public_id, quizzes_completed');
+        const { data, error } = await supabase.from('profiles').select('username, bio, id, public_id, quizzes_completed,username_slug');
 
         if (error) {
             return res.status(500).json({ error: error.message });

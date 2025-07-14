@@ -23,8 +23,6 @@ export const getAllCollections = async (req, res) => {
             return res.status(500).json({ error: error.message });
         }
 
-        console.log("All collections data:", data);
-
         res.json(data);
     } catch (err) {
         res.status(500).json({ error: 'Internal Server Error' });
@@ -355,7 +353,6 @@ export const searchCollections = async (req, res) => {
 export const getUserCollectionById = async (req, res) => {
     try {
         const { id } = req.params;
-        console.log("Fetching collection by ID:", id);
         const token = req.headers.authorization?.split(' ')[1];
         if (!token) {
             return res.status(401).json({ error: 'No token provided' });
@@ -381,10 +378,6 @@ export const getUserCollectionById = async (req, res) => {
 export const getUserCollectionId = async (req, res) => {
     try {
         const { uid, slug } = req.params;
-        console.log("Fetching collection ID for user:", uid, "with slug:", slug);
-
-        // No token required, use public supabase client
-        console.log("finding collection with author_public_id:", uid, "and slug:", slug);
 
         const { data, error } = await supabase
             .from('collections')
@@ -399,7 +392,6 @@ export const getUserCollectionId = async (req, res) => {
         if (!data) {
             return res.status(404).json({ error: 'Collection not found' });
         }
-        console.log("Found collection ID:", data.id);
         res.status(200).json({ id: data.id });
     } catch (err) {
         console.error('Error in getUserCollectionId:', err);
@@ -425,10 +417,8 @@ export const getUserCollection = async (req, res) => {
 };
 
 export const getPublicUserCollection = async (req, res) => {
-    console.log("Fetching public user collection");
     try {
         const { collectionId } = req.params;
-        console.log("Fetching collection:", collectionId);
         const { data, error } = await supabase
             .from('collections')
             .select('*')
@@ -456,8 +446,6 @@ export const getUserCollections = async (req, res) => {
         if (!token) {
             return res.status(401).json({ error: 'No token provided' });
         }
-
-        console.log("Fetching collections for user with UID:", uid);
 
         const selection = 'category, author, author_public_id, slug, created_at, items, tags, id';
 
@@ -583,8 +571,6 @@ export const renameCollection = async (req, res) => {
             return res.status(401).json({ error: 'No token provided' });
         }
 
-        console.log("Changing name from " + oldCategory + " to " + newCategory);
-
         // use supabase to find collection with oldName and change the collection name to newName
         const { data, error } = await getSupabaseClientWithToken(token).from('collections').update({ category: newCategory }).eq('category', oldCategory).select();
 
@@ -646,11 +632,8 @@ export const setVisible = async (req, res) => {
 
 export const updateCollection = async (req, res) => {
     try {
-        console.log("Updating collection");
         const { collectionId } = req.params;
-        console.log("Collection ID: " + collectionId);
         const data = req.body;
-        console.log("Data: ", data);
         const token = req.headers.authorization?.split(' ')[1];
         if (!token) {
             return res.status(401).json({ error: 'No token provided' });
