@@ -1,4 +1,5 @@
 import { supabase, getSupabaseClientWithToken } from '../config/supabaseClient.js';
+import slugify from 'slugify';
 export const uploadUserAvatar = (req, res) => {
     const { userId, file, path } = req.body;
 
@@ -10,6 +11,28 @@ export const uploadUserAvatar = (req, res) => {
         return res.status(400).json({ error: 'File is required' });
     }
 }
+
+export const getUserProfileFromUsername = async (req, res) => {
+    const { username } = req.params;
+
+    try {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('username', username)
+            .single();
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+        if (!data) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.json(data);
+    } catch (err) {
+        console.error('Error fetching user profile:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
 
 export const getUserProfile = async (req, res) => {
     const { uid } = req.params;
@@ -44,16 +67,60 @@ export const getUserProfile = async (req, res) => {
 
 
 export const createUserProfile = async (req, res) => {
-    const { userId, email, } = req.body;
+    const { userId, email, username } = req.body;
 
     if (!userId || !email) {
         return res.status(400).json({ error: 'User ID and email are required' });
     }
 
     try {
+        const profileData = { id: userId, email };
+
+        // If username is provided, add it with slug
+        if (username) {
+            const usernameSlug = slugify(username, {
+                lower: true,
+                strict: true,
+                trim: true
+            });
+
+            // Check if username already exists
+            const { data: existingUserByUsername, error: checkUsernameError } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('username', username)
+                .single();
+
+            if (checkUsernameError && checkUsernameError.code !== 'PGRST116') {
+                return res.status(500).json({ error: checkUsernameError.message });
+            }
+
+            if (existingUserByUsername) {
+                return res.status(400).json({ error: 'Username already exists' });
+            }
+
+            // Check if username slug already exists
+            const { data: existingUserBySlug, error: checkSlugError } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('username_slug', usernameSlug)
+                .single();
+
+            if (checkSlugError && checkSlugError.code !== 'PGRST116') {
+                return res.status(500).json({ error: checkSlugError.message });
+            }
+
+            if (existingUserBySlug) {
+                return res.status(400).json({ error: 'Username slug already exists, please choose a different username' });
+            }
+
+            profileData.username = username;
+            profileData.username_slug = usernameSlug;
+        }
+
         const { data, error } = await supabase
             .from('profiles')
-            .insert([{ id: userId, email }])
+            .insert([profileData])
             .single();
 
         if (error) {
@@ -76,26 +143,49 @@ export const changeUsername = async (req, res) => {
     }
 
     try {
+        // Create slugified version of username
+        const usernameSlug = slugify(username, {
+            lower: true,
+            strict: true,
+            trim: true
+        });
+
         // Check if username already exists for a different user
-        const { data: existingUser, error: checkError } = await supabase
+        const { data: existingUserByUsername, error: checkUsernameError } = await supabase
             .from('profiles')
             .select('id')
             .eq('username', username)
             .neq('id', userId)
             .single();
 
-        if (checkError && checkError.code !== 'PGRST116') {
+        if (checkUsernameError && checkUsernameError.code !== 'PGRST116') {
             // PGRST116 means no rows found, which is what we want
-            return res.status(500).json({ error: checkError.message });
+            return res.status(500).json({ error: checkUsernameError.message });
         }
 
-        if (existingUser) {
+        if (existingUserByUsername) {
             return res.status(400).json({ error: 'Username already exists' });
+        }
+
+        // Check if username slug already exists for a different user
+        const { data: existingUserBySlug, error: checkSlugError } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('username_slug', usernameSlug)
+            .neq('id', userId)
+            .single();
+
+        if (checkSlugError && checkSlugError.code !== 'PGRST116') {
+            return res.status(500).json({ error: checkSlugError.message });
+        }
+
+        if (existingUserBySlug) {
+            return res.status(400).json({ error: 'Username slug already exists, please choose a different username' });
         }
 
         const { data, error } = await supabase
             .from('profiles')
-            .update({ username })
+            .update({ username, username_slug: usernameSlug })
             .eq('id', userId)
             .select()
             .single();
