@@ -76,6 +76,23 @@ export const changeUsername = async (req, res) => {
     }
 
     try {
+        // Check if username already exists for a different user
+        const { data: existingUser, error: checkError } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('username', username)
+            .neq('id', userId)
+            .single();
+
+        if (checkError && checkError.code !== 'PGRST116') {
+            // PGRST116 means no rows found, which is what we want
+            return res.status(500).json({ error: checkError.message });
+        }
+
+        if (existingUser) {
+            return res.status(400).json({ error: 'Username already exists' });
+        }
+
         const { data, error } = await supabase
             .from('profiles')
             .update({ username })
