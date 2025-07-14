@@ -91,6 +91,10 @@ export const UploadToSupabase = async (req, res, next) => {
             forceJpeg: forceJpeg || false,
         });
 
+        if (!file.originalname) {
+            file.originalname = `file-${Date.now()}`;
+        }
+
         let fileExtension = file.originalname.split(".").pop().toLowerCase();
 
         if (forceJpeg === true || forceJpeg === "true") {

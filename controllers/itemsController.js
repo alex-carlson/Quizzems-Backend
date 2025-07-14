@@ -68,7 +68,21 @@ export const AddItemToCollection = async (req, res) => {
             console.error("Error fetching collection:", fetchError);
             return res.status(500).json({ error: "Failed to fetch collection", details: fetchError });
         }
-        const updatedItems = collection.items ? [...collection.items, myItem] : [myItem];
+        let updatedItems;
+        if (collection.items && Array.isArray(collection.items)) {
+            const existingIndex = collection.items.findIndex(item => item.id === myItem.id);
+            if (existingIndex !== -1) {
+                // Update existing item
+                updatedItems = collection.items.map(item =>
+                    item.id === myItem.id ? { ...item, ...myItem } : item
+                );
+            } else {
+                // Append new item
+                updatedItems = [...collection.items, myItem];
+            }
+        } else {
+            updatedItems = [myItem];
+        }
         const { data, error } = await updateCollectionItems(token, category, updatedItems, author_id);
         if (error) {
             console.error("Error updating collection:", error);
