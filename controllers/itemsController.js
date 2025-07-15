@@ -97,7 +97,7 @@ export const AddItemToCollection = async (req, res) => {
 
 export const AddAudioToCollection = async (req, res) => {
     try {
-        const { category, author, uuid, answer, author_id, url } = req.body;
+        const { category, author, author_id, url } = req.body;
         console.log(req.body);
         if (!category || !author || !url) {
             return res.status(400).json({ error: "Missing required fields" });
@@ -106,11 +106,20 @@ export const AddAudioToCollection = async (req, res) => {
         if (!token) {
             return res.status(401).json({ error: "No token provided" });
         }
-        const myItem = {
-            id: uuid || null,
+
+        const finalBody = {
+            // get id, audio, title, answer, and thumbnail from req.body
+            id: req.body.id || null,
             audio: url || null,
-            answer: answer || null
+            title: req.body.title || null,
+            answer: req.body.answer || null,
+            thumbnail: req.body.thumbnail || null
+        }
+
+        const myItem = {
+            ...finalBody
         };
+        console.log("myItem", myItem);
         const { data: collection, error: fetchError } = await fetchCollection(token, category, author_id);
         if (fetchError) {
             console.error("Error fetching collection:", fetchError);
