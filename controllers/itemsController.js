@@ -200,23 +200,24 @@ export const RemoveItemFromCollection = async (req, res) => {
 
 export const EditItemInCollection = async (req, res) => {
     try {
-        const { collection, id, answer, author_id } = req.body;
+        const { collection, id, author_id, ...updateFields } = req.body;
         const token = getToken(req);
         if (!token) {
             return res.status(401).json({ error: "No token provided" });
         }
-        if (!collection || !id || !answer) {
+        if (!collection || !id) {
             return res.status(400).json({ error: "Missing required fields" });
         }
         const { data, error } = await fetchCollection(token, collection, author_id);
         if (error) {
-            console.error("Error updating collection:", error);
-            return res.status(500).json({ error: "Failed to update collection", details: error });
+            console.error("Error fetching collection:", error);
+            return res.status(500).json({ error: "Failed to fetch collection", details: error });
         }
         let items = data.items;
         items = items.map(item =>
-            item.id === id ? { ...item, answer } : item
+            item.id === id ? { ...item, ...updateFields } : item
         );
+
         const { error: updateError } = await updateCollectionItems(token, collection, items, author_id);
         if (updateError) {
             console.error("Error updating collection:", updateError);
