@@ -29,34 +29,49 @@ export const getAllCollections = async (req, res) => {
     }
 };
 
-export const getPopularTags = async (req, res) => {
+export const getPopularTags = async (_, res) => {
     try {
         const { data, error } = await supabase
             .from('collections')
-            .select('tags', { count: 'exact' })
+            .select('tags')
             .eq('private', false);
+
         if (error) {
-            console.error('Error fetching popular tags:', error);
+            console.error('Error fetching tags:', error);
             return res.status(500).json({ error: error.message });
         }
         if (!data || data.length === 0) {
             return res.status(404).json({ error: 'No collections found' });
         }
-        // Extract tags from collections
-        const tags = data.reduce((acc, collection) => {
-            if (collection.tags && Array.isArray(collection.tags)) {
-                collection.tags.forEach(tag => {
-                    if (tag && !acc.includes(tag)) {
-                        acc.push(tag);
+
+        // Count tag occurrences, handling stringified arrays
+        const tagCounts = {};
+        data.forEach(collection => {
+            let tags = collection.tags;
+            if (typeof tags === 'string') {
+                try {
+                    tags = JSON.parse(tags);
+                } catch {
+                    tags = [];
+                }
+            }
+            if (Array.isArray(tags)) {
+                tags.forEach(tag => {
+                    if (tag) {
+                        tagCounts[tag] = (tagCounts[tag] || 0) + 1;
                     }
                 });
             }
-            return acc;
-        }, []);
-        // Sort tags alphabetically
-        tags.sort((a, b) => a.localeCompare(b));
+        });
+
+        // Convert to array and sort by count descending
+        const sortedTags = Object.entries(tagCounts)
+            .sort((a, b) => b[1] - a[1])
+            .map(([tag]) => tag);
+
         // Limit to 20 tags
-        const limitedTags = tags.slice(0, 20);
+        const limitedTags = sortedTags.slice(0, 20);
+
         res.json(limitedTags);
     } catch (err) {
         console.error('Error in getPopularTags:', err);
@@ -99,7 +114,7 @@ export const getMostPopularCollections = async (req, res) => {
             .from('collections')
             .select(selection)
             .eq('private', false)
-            .order('times_played', { ascending: false })
+            .order('times_played', { ascending: false, nullsFirst: false })
             .limit(max);
         const { data, error } = await getCollectionsWithItemsCount(query, selection, true);
         if (error) {
