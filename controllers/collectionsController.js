@@ -29,7 +29,43 @@ export const getAllCollections = async (req, res) => {
     }
 };
 
+export const getPopularTags = async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('collections')
+            .select('tags', { count: 'exact' })
+            .eq('private', false);
+        if (error) {
+            console.error('Error fetching popular tags:', error);
+            return res.status(500).json({ error: error.message });
+        }
+        if (!data || data.length === 0) {
+            return res.status(404).json({ error: 'No collections found' });
+        }
+        // Extract tags from collections
+        const tags = data.reduce((acc, collection) => {
+            if (collection.tags && Array.isArray(collection.tags)) {
+                collection.tags.forEach(tag => {
+                    if (tag && !acc.includes(tag)) {
+                        acc.push(tag);
+                    }
+                });
+            }
+            return acc;
+        }, []);
+        // Sort tags alphabetically
+        tags.sort((a, b) => a.localeCompare(b));
+        // Limit to 20 tags
+        const limitedTags = tags.slice(0, 20);
+        res.json(limitedTags);
+    } catch (err) {
+        console.error('Error in getPopularTags:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
 export const getLatestCollections = async (req, res) => {
+    console.log('getLatestCollections called with limit:', req.limit);
     try {
         const max = req.limit || 12;
 
@@ -50,6 +86,28 @@ export const getLatestCollections = async (req, res) => {
 
         res.json(data);
     } catch (err) {
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const getMostPopularCollections = async (req, res) => {
+    console.log('getMostPopularCollections called with limit:', req.limit);
+    try {
+        const max = req.limit || 12;
+        const selection = 'id, category, author, author_public_id, slug, created_at, items, times_played, tags';
+        const query = supabase
+            .from('collections')
+            .select(selection)
+            .eq('private', false)
+            .order('times_played', { ascending: false })
+            .limit(max);
+        const { data, error } = await getCollectionsWithItemsCount(query, selection, true);
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+        res.json(data);
+    } catch (err) {
+        console.error('Error in getMostPopularCollections:', err);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
@@ -392,6 +450,7 @@ export const getUserCollectionId = async (req, res) => {
         if (!data) {
             return res.status(404).json({ error: 'Collection not found' });
         }
+
         res.status(200).json({ id: data.id });
     } catch (err) {
         console.error('Error in getUserCollectionId:', err);
@@ -428,6 +487,16 @@ export const getPublicUserCollection = async (req, res) => {
 
         if (error) {
             return res.status(500).json({ error: error.message });
+        }
+
+        // increment data.times_played by 1 and update the table
+        const { error: updateError } = await supabase
+            .from('collections')
+            .update({ times_played: (data.times_played || 0) + 1 })
+            .eq('id', data.id);
+        if (updateError) {
+            console.error('Error updating times_played:', updateError);
+            return res.status(500).json({ error: updateError.message });
         }
 
         // Add thumbnail to single collection

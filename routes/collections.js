@@ -14,7 +14,9 @@ import {
   getRandomCollections,
   updateCollection,
   getPaginatedCollections,
-  getUserCollectionId
+  getUserCollectionId,
+  getMostPopularCollections,
+  getPopularTags
 } from '../controllers/collectionsController.js';
 import verifySupabaseToken from '../middleware/supabaseAuth.js';
 
@@ -27,6 +29,16 @@ router.get('/id/:id', verifySupabaseToken, getUserCollectionById);
 router.get('/latest', (req, res, next) => {
   req.limit = req.query.limit ? parseInt(req.query.limit, 10) : undefined;
   getLatestCollections(req, res, next);
+});
+router.get('/popular', (req, res, next) => {
+  req.limit = req.query.limit ? parseInt(req.query.limit, 10) : undefined;
+  getMostPopularCollections(req, res, next);
+});
+
+router.get('/tags/popular', (req, res, next) => {
+  req.limit = req.query.limit ? parseInt(req.query.limit, 10) : undefined;
+  req.tag = req.query.tag || '';
+  getPopularTags(req, res, next);
 });
 
 // GET random collections (public) - Static routes before dynamic
