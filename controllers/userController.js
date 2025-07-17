@@ -287,3 +287,49 @@ export const completeQuiz = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
+
+export const deleteQuizScore = async (req, res) => {
+    const { user_id, quiz_id } = req.body;
+
+    console.log('Deleting quiz score for user:', user_id, 'quiz:', quiz_id);
+
+    if (!user_id || !quiz_id) {
+        return res.status(400).json({ error: 'User ID and Quiz ID are required' });
+    }
+
+    try {
+        // Fetch the user's quizzes_completed field
+        const { data: profile, error: fetchError } = await supabase
+            .from('profiles')
+            .select('quizzes_completed')
+            .eq('id', user_id)
+            .single();
+
+        if (fetchError) {
+            return res.status(500).json({ error: fetchError.message });
+        }
+
+        let quizzes_completed = profile?.quizzes_completed || [];
+        if (!Array.isArray(quizzes_completed)) {
+            quizzes_completed = [];
+        }
+
+        // Remove the quiz with the matching quiz_id
+        const updatedQuizzes = quizzes_completed.filter(q => q.quiz_id !== quiz_id);
+
+        // Update the profile with the new quizzes_completed array
+        const { data, error } = await supabase
+            .from('profiles')
+            .update({ quizzes_completed: updatedQuizzes })
+            .eq('id', user_id);
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+
+        res.json({ message: 'Quiz score deleted successfully', data });
+    } catch (err) {
+        console.error('Error deleting quiz score:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+}
