@@ -71,8 +71,6 @@ export const getPopularTags = async (_, res) => {
 
         const limitedTags = sortedTags.slice(0, 20);
 
-        console.log('sortedTags:', sortedTags);
-
         res.json(limitedTags);
     } catch (err) {
         console.error('Error in getPopularTags:', err);
@@ -418,6 +416,43 @@ export const searchCollections = async (req, res) => {
 
         res.json(combined);
     } catch (err) {
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const getCollectionsByTag = async (req, res) => {
+    try {
+        const { tag } = req.params;
+        if (!tag || typeof tag !== 'string' || !tag.trim()) {
+            return res.status(400).json({ error: 'Tag parameter is required' });
+        }
+        const searchTag = tag.trim().toLowerCase();
+        const selection = 'id, category, author, author_public_id, slug, created_at, items, tags';
+        // Fetch collections where tags ilike the tag (broad match)
+        const query = supabase
+            .from('collections')
+            .select(selection)
+            .eq('private', false)
+            .ilike('tags', `%${searchTag}%`);
+        const { data, error } = await getCollectionsWithItemsCount(query, selection, true);
+        if (error) {
+            console.error('Error fetching collections by tag:', error);
+            return res.status(500).json({ error: error.message });
+        }
+        // Filter in JS for exact tag match
+        const filtered = (data || []).filter(col => {
+            let tags = col.tags;
+            if (typeof tags === 'string') {
+                tags = tags.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+            }
+            return Array.isArray(tags) && tags.includes(searchTag);
+        });
+        if (!filtered.length) {
+            return res.status(404).json({ error: 'No collections found for this tag' });
+        }
+        res.json(filtered);
+    } catch (err) {
+        console.error('Error in getCollectionsByTag:', err);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
@@ -793,7 +828,6 @@ export const getCollectionThumbnailEndpoint = async (req, res) => {
 
 export const getRecommendedTags = async (req, res) => {
     const query = req.query || "";
-    console.log('getRecommendedTags called with query:', query);
     if (!query || typeof query !== "string" || !query.trim()) {
         return res.status(400).json({ error: "Query parameter is required" });
     }

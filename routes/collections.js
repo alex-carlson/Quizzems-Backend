@@ -17,7 +17,8 @@ import {
   getUserCollectionId,
   getMostPopularCollections,
   getPopularTags,
-  getRecommendedTags
+  getRecommendedTags,
+  getCollectionsByTag
 } from '../controllers/collectionsController.js';
 import verifySupabaseToken from '../middleware/supabaseAuth.js';
 
@@ -77,6 +78,9 @@ router.delete('/:uid/:collectionId', verifySupabaseToken, deleteCollection);
 
 // GET recommended tags based on query string
 router.get('/tags/recommended', getRecommendedTags);
+
+// GET collections by tag
+router.get('/byTag/:tag', getCollectionsByTag);
 
 // GET all collections (public, static route) - Most general route last
 router.get('/', getAllCollections);
