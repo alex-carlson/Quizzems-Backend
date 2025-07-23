@@ -44,33 +44,34 @@ export const getPopularTags = async (_, res) => {
             return res.status(404).json({ error: 'No collections found' });
         }
 
-        // Count tag occurrences, handling stringified arrays
         const tagCounts = {};
+
         data.forEach(collection => {
             let tags = collection.tags;
+
+            // Handle tags as a comma-separated string
             if (typeof tags === 'string') {
-                try {
-                    tags = JSON.parse(tags);
-                } catch {
-                    tags = [];
-                }
+                tags = tags.split(',').map(tag => tag.trim()).filter(tag => tag);
             }
+
             if (Array.isArray(tags)) {
                 tags.forEach(tag => {
-                    if (tag) {
-                        tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+                    if (typeof tag === 'string' && tag.trim()) {
+                        const normalized = tag.trim().toLowerCase();
+                        tagCounts[normalized] = (tagCounts[normalized] || 0) + 1;
                     }
                 });
             }
         });
 
-        // Convert to array and sort by count descending
+        // Convert tagCounts object to array of { tag, count }
         const sortedTags = Object.entries(tagCounts)
             .sort((a, b) => b[1] - a[1])
-            .map(([tag]) => tag);
+            .map(([tag, count]) => ({ tag, count }));
 
-        // Limit to 20 tags
         const limitedTags = sortedTags.slice(0, 20);
+
+        console.log('sortedTags:', sortedTags);
 
         res.json(limitedTags);
     } catch (err) {
@@ -79,8 +80,8 @@ export const getPopularTags = async (_, res) => {
     }
 };
 
+
 export const getLatestCollections = async (req, res) => {
-    console.log('getLatestCollections called with limit:', req.limit);
     try {
         const max = req.limit || 12;
 
@@ -106,7 +107,6 @@ export const getLatestCollections = async (req, res) => {
 };
 
 export const getMostPopularCollections = async (req, res) => {
-    console.log('getMostPopularCollections called with limit:', req.limit);
     try {
         const max = req.limit || 12;
         const selection = 'id, category, author, author_public_id, slug, created_at, items, times_played, tags';
@@ -787,6 +787,62 @@ export const getCollectionThumbnailEndpoint = async (req, res) => {
         res.json({ thumbnail });
     } catch (err) {
         console.error('Error in getCollectionThumbnailEndpoint:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const getRecommendedTags = async (req, res) => {
+    const query = req.query || "";
+    console.log('getRecommendedTags called with query:', query);
+    if (!query || typeof query !== "string" || !query.trim()) {
+        return res.status(400).json({ error: "Query parameter is required" });
+    }
+    try {
+        const { data, error } = await supabase
+            .from('collections')
+            .select('tags')
+            .eq('private', false);
+
+        if (error) {
+            console.error('Error fetching tags:', error);
+            return res.status(500).json({ error: error.message });
+        }
+        if (!data || data.length === 0) {
+            return res.status(404).json({ error: 'No collections found' });
+        }
+
+        const tagCounts = {};
+        const search = query.trim().toLowerCase();
+
+        data.forEach(collection => {
+            let tags = collection.tags;
+            // Handle tags as a comma-separated string
+            if (typeof tags === 'string') {
+                tags = tags.split(',').map(tag => tag.trim()).filter(tag => tag);
+            }
+            if (Array.isArray(tags)) {
+                tags.forEach(tag => {
+                    if (typeof tag === 'string' && tag.trim()) {
+                        const normalized = tag.trim().toLowerCase();
+                        if (normalized.includes(search)) {
+                            tagCounts[normalized] = (tagCounts[normalized] || 0) + 1;
+                        }
+                    }
+                });
+            }
+        });
+
+        // Convert tagCounts object to array of { tag, count }
+        const sortedTags = Object.entries(tagCounts)
+            .sort((a, b) => b[1] - a[1])
+            .map(([tag, count]) => ({ tag, count }));
+
+        // Limit to 20 tags
+        const limitedTags = sortedTags.slice(0, 20);
+
+        res.json(limitedTags);
+    } catch (err) {
+        console.error('Error in getRecommendedTags:', err);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
