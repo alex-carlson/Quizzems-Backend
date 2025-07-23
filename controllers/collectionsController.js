@@ -827,7 +827,8 @@ export const getCollectionThumbnailEndpoint = async (req, res) => {
 };
 
 export const getRecommendedTags = async (req, res) => {
-    const query = req.query || "";
+    // Accept query as a POST body property
+    const { query } = req.body || {};
     if (!query || typeof query !== "string" || !query.trim()) {
         return res.status(400).json({ error: "Query parameter is required" });
     }
@@ -846,7 +847,8 @@ export const getRecommendedTags = async (req, res) => {
         }
 
         const tagCounts = {};
-        const search = query.trim().toLowerCase();
+        // Split query into words, lowercase and trim
+        const searchWords = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
 
         data.forEach(collection => {
             let tags = collection.tags;
@@ -858,7 +860,8 @@ export const getRecommendedTags = async (req, res) => {
                 tags.forEach(tag => {
                     if (typeof tag === 'string' && tag.trim()) {
                         const normalized = tag.trim().toLowerCase();
-                        if (normalized.includes(search)) {
+                        // If any search word is included in the tag
+                        if (searchWords.some(word => normalized.includes(word))) {
                             tagCounts[normalized] = (tagCounts[normalized] || 0) + 1;
                         }
                     }
@@ -873,6 +876,8 @@ export const getRecommendedTags = async (req, res) => {
 
         // Limit to 20 tags
         const limitedTags = sortedTags.slice(0, 20);
+
+        console.log('Recommended tags:', limitedTags);
 
         res.json(limitedTags);
     } catch (err) {

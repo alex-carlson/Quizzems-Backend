@@ -76,8 +76,8 @@ router.post('/setVisible', verifySupabaseToken, setVisible);
 // DELETE collection (protected)
 router.delete('/:uid/:collectionId', verifySupabaseToken, deleteCollection);
 
-// GET recommended tags based on query string
-router.get('/tags/recommended', getRecommendedTags);
+// POST recommended tags based on query string
+router.post('/tags/recommended', getRecommendedTags);
 
 // GET collections by tag
 router.get('/byTag/:tag', getCollectionsByTag);
