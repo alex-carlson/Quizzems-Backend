@@ -29,8 +29,9 @@ export const getAllCollections = async (req, res) => {
     }
 };
 
-export const getPopularTags = async (_, res) => {
+export const getPopularTags = async (req, res) => {
     try {
+        const { limit = 20 } = req.query;
         const { data, error } = await supabase
             .from('collections')
             .select('tags')
@@ -69,7 +70,7 @@ export const getPopularTags = async (_, res) => {
             .sort((a, b) => b[1] - a[1])
             .map(([tag, count]) => ({ tag, count }));
 
-        const limitedTags = sortedTags.slice(0, 20);
+        const limitedTags = sortedTags.slice(0, limit);
 
         res.json(limitedTags);
     } catch (err) {
@@ -876,8 +877,6 @@ export const getRecommendedTags = async (req, res) => {
 
         // Limit to 20 tags
         const limitedTags = sortedTags.slice(0, 20);
-
-        console.log('Recommended tags:', limitedTags);
 
         res.json(limitedTags);
     } catch (err) {
