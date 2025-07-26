@@ -18,7 +18,8 @@ import {
   getMostPopularCollections,
   getPopularTags,
   getRecommendedTags,
-  getCollectionsByTag
+  getCollectionsByTag,
+  getDailyCollection
 } from '../controllers/collectionsController.js';
 import verifySupabaseToken from '../middleware/supabaseAuth.js';
 
@@ -81,6 +82,9 @@ router.post('/tags/recommended', getRecommendedTags);
 
 // GET collections by tag
 router.get('/byTag/:tag', getCollectionsByTag);
+
+// GET one random collection that shuffles every 24 hours
+router.get('/random-daily', getDailyCollection);
 
 // GET all collections (public, static route) - Most general route last
 router.get('/', getAllCollections);

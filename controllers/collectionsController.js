@@ -185,6 +185,58 @@ export const getRandomCollections = async (req, res) => {
     }
 };
 
+export const getDailyCollection = async (req, res) => {
+    try {
+        // Use the current day as a seed
+        const today = new Date();
+        const seed = today.getUTCFullYear() + '-' + (today.getUTCMonth() + 1) + '-' + today.getUTCDate();
+
+        // Get all public collection IDs
+        const { data: idData, error: idError } = await supabase
+            .from('collections')
+            .select('id')
+            .eq('private', false);
+        if (idError) {
+            return res.status(500).json({ error: idError.message });
+        }
+        if (!idData || idData.length === 0) {
+            return res.status(404).json({ error: 'No collections found' });
+        }
+
+        // Deterministically pick an index for today
+        function seededRandom(seed) {
+            let h = 2166136261 >>> 0;
+            for (let i = 0; i < seed.length; i++) {
+                h = Math.imul(h ^ seed.charCodeAt(i), 16777619);
+            }
+            return () => ((h = Math.imul(h ^ (h >>> 13), 16777619)) >>> 0) / 4294967296;
+        }
+
+        const rand = seededRandom(seed);
+        const index = Math.floor(rand() * idData.length);
+        const chosenId = idData[index].id;
+
+        // Fetch the chosen collection by ID
+        const selection = 'id, category, author, author_public_id, slug, created_at, items, tags';
+        const query = supabase
+            .from('collections')
+            .select(selection)
+            .eq('id', chosenId)
+            .eq('private', false);
+        const { data, error } = await getCollectionsWithItemsCount(query, selection, true);
+
+        if (error || !data || !data.length) {
+            return res.status(404).json({ error: 'No collections found' });
+        }
+
+        // Only one collection is returned
+        res.json(data[0]);
+    } catch (err) {
+        console.error('Error in getDailyCollection:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
 export const getPaginatedCollections = async (req, res) => {
     try {
         const { page = 1, limit = 10 } = req.params;
@@ -860,10 +912,9 @@ export const getRecommendedTags = async (req, res) => {
             if (Array.isArray(tags)) {
                 tags.forEach(tag => {
                     if (typeof tag === 'string' && tag.trim()) {
-                        const normalized = tag.trim().toLowerCase();
                         // If any search word is included in the tag
-                        if (searchWords.some(word => normalized.includes(word))) {
-                            tagCounts[normalized] = (tagCounts[normalized] || 0) + 1;
+                        if (searchWords.some(word => tag.trim().toLowerCase().includes(word))) {
+                            tagCounts[tag.trim().toLowerCase()] = (tagCounts[tag.trim().toLowerCase()] || 0) + 1;
                         }
                     }
                 });
