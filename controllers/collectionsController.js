@@ -191,10 +191,10 @@ export const getDailyCollection = async (req, res) => {
         const today = new Date();
         const seed = today.getUTCFullYear() + '-' + (today.getUTCMonth() + 1) + '-' + today.getUTCDate();
 
-        // Get all public collection IDs
+        // Get all public collection IDs and created_at
         const { data: idData, error: idError } = await supabase
             .from('collections')
-            .select('id')
+            .select('id,created_at')
             .eq('private', false);
         if (idError) {
             return res.status(500).json({ error: idError.message });
@@ -203,18 +203,29 @@ export const getDailyCollection = async (req, res) => {
             return res.status(404).json({ error: 'No collections found' });
         }
 
-        // Deterministically pick an index for today
-        function seededRandom(seed) {
+        // Sort by id for absolute stability
+        idData.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+
+        // Hash function: FNV-1a 32bit
+        function hash(str) {
             let h = 2166136261 >>> 0;
-            for (let i = 0; i < seed.length; i++) {
-                h = Math.imul(h ^ seed.charCodeAt(i), 16777619);
+            for (let i = 0; i < str.length; i++) {
+                h ^= str.charCodeAt(i);
+                h = Math.imul(h, 16777619);
             }
-            return () => ((h = Math.imul(h ^ (h >>> 13), 16777619)) >>> 0) / 4294967296;
+            return h >>> 0;
         }
 
-        const rand = seededRandom(seed);
-        const index = Math.floor(rand() * idData.length);
-        const chosenId = idData[index].id;
+        // Pick the collection with the highest hash(seed+id)
+        let maxHash = -1;
+        let chosenId = idData[0].id;
+        for (const col of idData) {
+            const h = hash(seed + ':' + col.id);
+            if (h > maxHash) {
+                maxHash = h;
+                chosenId = col.id;
+            }
+        }
 
         // Fetch the chosen collection by ID
         const selection = 'id, category, author, author_public_id, slug, created_at, items, tags';
