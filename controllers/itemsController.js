@@ -50,7 +50,7 @@ export const AddThumbnailToCollection = async (req, res) => {
 
 export const AddItemToCollection = async (req, res) => {
     try {
-        const { category, author, uuid, answer, author_id, author_uuid } = req.body;
+        const { category, author, uuid, answer, author_id, author_uuid, extra } = req.body;
         if (!category || !author || !req.uploadedImageUrl) {
             return res.status(400).json({ error: "Missing required fields" });
         }
@@ -61,7 +61,8 @@ export const AddItemToCollection = async (req, res) => {
         const myItem = {
             id: uuid || null,
             image: req.uploadedImageUrl || null,
-            answer: answer || null
+            answer: answer || null,
+            extra: extra || null
         };
         const { data: collection, error: fetchError } = await fetchCollection(token, category, author_id);
         if (fetchError) {
