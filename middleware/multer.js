@@ -7,7 +7,12 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 function sanitizeName(name) {
-    return name.replace(/[^a-zA-Z0-9-_]/g, "_");
+    // Only replace invalid characters, but keep the last dot for the extension
+    const lastDot = name.lastIndexOf('.');
+    if (lastDot === -1) return name.replace(/[^a-zA-Z0-9-_]/g, "_");
+    const base = name.substring(0, lastDot).replace(/[^a-zA-Z0-9-_]/g, "_");
+    const ext = name.substring(lastDot + 1).replace(/[^a-zA-Z0-9]/g, "");
+    return ext ? `${base}.${ext}` : base;
 }
 
 export const uploadUrlToSupabase = async (req, res, next) => {
