@@ -99,28 +99,37 @@ export const getCollectionThumbnail = async (collection) => {
         return null;
     }
 
-    // First, try to get the dedicated thumbnail from storage
-    const thumbnailPath = `${collection.author}/${collection.category}/thumbnail.jpg`;
+    // sterilize author and category names to ensure they are safe for use in paths
+    const sanitizeName = (name) => {
+        return name.replace(/[^a-zA-Z0-9-_]/g, '_');
+    };
 
-    try {
-        // Get the public URL for the thumbnail
-        const { data: thumbnailData } = supabase.storage
-            .from('uploads')
-            .getPublicUrl(thumbnailPath);
+    // Try sanitized path first
+    const sanitizedPath = sanitizeName(`${collection.author}/${collection.category}`) + "/thumbnail.jpg";
+    const unsanitizedPath = `${collection.author}/${collection.category}/thumbnail.jpg`;
 
-        if (thumbnailData?.publicUrl) {
-            // Validate if the thumbnail actually exists by making a HEAD request
-            try {
-                const response = await fetch(thumbnailData.publicUrl, { method: 'HEAD' });
-                if (response.ok) {
-                    return thumbnailData.publicUrl;
+    for (const thumbnailPath of [sanitizedPath, unsanitizedPath]) {
+        console.log(`Checking thumbnail path: ${thumbnailPath}`);
+        try {
+            // Get the public URL for the thumbnail
+            const { data: thumbnailData } = supabase.storage
+                .from('uploads')
+                .getPublicUrl(thumbnailPath);
+
+            if (thumbnailData?.publicUrl) {
+                // Validate if the thumbnail actually exists by making a HEAD request
+                try {
+                    const response = await fetch(thumbnailData.publicUrl, { method: 'HEAD' });
+                    if (response.ok) {
+                        return thumbnailData.publicUrl;
+                    }
+                } catch (fetchError) {
+                    console.log(`Thumbnail validation failed for ${thumbnailPath}:`, fetchError.message);
                 }
-            } catch (fetchError) {
-                console.log(`Thumbnail validation failed for ${thumbnailPath}:`, fetchError.message);
             }
+        } catch (storageError) {
+            console.log(`Storage error for thumbnail ${thumbnailPath}:`, storageError.message);
         }
-    } catch (storageError) {
-        console.log(`Storage error for thumbnail ${thumbnailPath}:`, storageError.message);
     }
 
     // Fallback: try to get the first item's image
