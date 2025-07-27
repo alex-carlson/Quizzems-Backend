@@ -6,6 +6,10 @@ import { getSupabaseClientWithToken, supabase } from "../config/supabaseClient.j
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
+function sanitizeName(name) {
+    return name.replace(/[^a-zA-Z0-9-_]/g, "_");
+}
+
 export const uploadUrlToSupabase = async (req, res, next) => {
     try {
         const { folder, uuid, bucket: reqBucket, fileName, forceJpeg } = req.body;
@@ -23,9 +27,9 @@ export const uploadUrlToSupabase = async (req, res, next) => {
             fileExtension = fileUrl.substring(lastDotIndex + 1).split(/[?#]/)[0];
         }
 
-        let finalFileName = fileName
-            ? `${uuid}/${fileName}`
-            : `${folder || "uploads"}/${uuid}.${fileExtension}`;
+        const safeFolder = sanitizeName(folder || "uploads");
+        const safeFileName = sanitizeName(fileName || `${uuid}.${fileExtension}`);
+        const finalFileName = `${safeFolder}/${safeFileName}`;
 
         console.log("🚀 Uploading to Supabase from URL:", {
             folder, uuid, bucket, fileUrl, fileName: finalFileName,
@@ -45,30 +49,47 @@ export const uploadUrlToSupabase = async (req, res, next) => {
             finalFileName = `${folder || "uploads"}/${uuid}.jpg`;
         }
 
-        const { data, error } = await getSupabaseClientWithToken(token).storage
-            .from(bucket)
-            .upload(finalFileName, fileBuffer, {
-                contentType,
-                upsert: true,
-            });
+        try {
+            const { data, error } = await getSupabaseClientWithToken(token).storage
+                .from(bucket)
+                .upload(finalFileName, fileBuffer, {
+                    contentType,
+                    upsert: true,
+                });
 
-        if (error) {
-            console.error("❌ Supabase Upload Error:", error);
-            return res.status(400).json({ message: "Failed to upload to Supabase", details: error.message });
+            if (error) {
+                console.error("❌ Supabase Upload Error:", error);
+                return res.status(400).json({ message: "Failed to upload to Supabase", details: error.message });
+            }
+
+            const filePath = data?.path;
+            const publicUrlResponse = supabase.storage.from(bucket).getPublicUrl(filePath);
+            const publicURL = publicUrlResponse?.data?.publicUrl;
+
+            if (!publicURL) {
+                console.error("❌ Failed to retrieve public URL");
+                return res.status(400).json({ message: "Failed to retrieve public URL" });
+            }
+
+            console.log("🚀 Public URL:", publicURL);
+            req.uploadedImageUrl = publicURL;
+            next();
+        } catch (error) {
+            // If error.response exists, log the raw HTML
+            if (error.response && error.response.data) {
+                let htmlError;
+                if (Buffer.isBuffer(error.response.data)) {
+                    htmlError = error.response.data.toString('utf8');
+                } else if (error.response.data instanceof ArrayBuffer) {
+                    htmlError = Buffer.from(error.response.data).toString('utf8');
+                } else {
+                    htmlError = String(error.response.data);
+                }
+                console.error("----- BEGIN HTML ERROR RESPONSE -----\n" + htmlError + "\n----- END HTML ERROR RESPONSE -----");
+            }
+            console.error("❌ Unexpected Error:", error);
+            return res.status(500).json({ message: "Internal Server Error", details: error.message });
         }
-
-        const filePath = data?.path;
-        const publicUrlResponse = supabase.storage.from(bucket).getPublicUrl(filePath);
-        const publicURL = publicUrlResponse?.data?.publicUrl;
-
-        if (!publicURL) {
-            console.error("❌ Failed to retrieve public URL");
-            return res.status(400).json({ message: "Failed to retrieve public URL" });
-        }
-
-        console.log("🚀 Public URL:", publicURL);
-        req.uploadedImageUrl = publicURL;
-        next();
     } catch (error) {
         console.error("❌ Unexpected Error:", error);
         res.status(500).json({ message: "Internal Server Error", details: error.message });
@@ -108,7 +129,8 @@ export const UploadToSupabase = async (req, res, next) => {
             file.originalname = `${file.originalname.split(".")[0]}.${fileExtension}`;
         }
 
-        const finalFileName = `${folder || "uploads"}/${uuid}.${fileExtension}`;
+        const safeFolder = sanitizeName(folder || "uploads");
+        const finalFileName = `${safeFolder}/${uuid}.${fileExtension}`;
 
         console.log("🚀 Uploading to Supabase:", {
             folder, uuid, bucket,
