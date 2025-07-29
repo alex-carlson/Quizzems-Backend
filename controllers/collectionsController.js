@@ -11,9 +11,9 @@ import {
 
 export const getAllCollections = async (req, res) => {
     try {
-        const selection = 'category, author, author_public_id, slug, created_at, items, tags';
+        const selection = 'category, author, author_public_id, slug, created_at, questions, tags';
         const query = supabase
-            .from('collections')
+            .from('collections_v2')
             .select(selection)
             .eq('private', false);
 
@@ -33,7 +33,7 @@ export const getPopularTags = async (req, res) => {
     try {
         const { limit = 20 } = req.query;
         const { data, error } = await supabase
-            .from('collections')
+            .from('collections_v2')
             .select('tags')
             .eq('private', false);
 
@@ -84,10 +84,10 @@ export const getLatestCollections = async (req, res) => {
     try {
         const max = req.limit || 12;
 
-        const selection = 'id, category, author, author_public_id, slug, created_at, items';
+        const selection = 'id, category, author, author_public_id, slug, created_at, questions';
 
         const query = supabase
-            .from('collections')
+            .from('collections_v2')
             .select(selection)
             .eq('private', false)
             .order('created_at', { ascending: false })
@@ -108,9 +108,9 @@ export const getLatestCollections = async (req, res) => {
 export const getMostPopularCollections = async (req, res) => {
     try {
         const max = req.limit || 12;
-        const selection = 'id, category, author, author_public_id, slug, created_at, items, times_played, tags';
+        const selection = 'id, category, author, author_public_id, slug, created_at, questions, times_played, tags';
         const query = supabase
-            .from('collections')
+            .from('collections_v2')
             .select(selection)
             .eq('private', false)
             .order('times_played', { ascending: false, nullsFirst: false })
@@ -130,10 +130,10 @@ export const getLatestCollectionsWithThumbnails = async (req, res) => {
     try {
         const max = req.params.limit || 12;
 
-        const selection = 'id, category, author, author_public_id, slug, created_at, items, tags';
+        const selection = 'id, category, author, author_public_id, slug, created_at, questions, tags';
 
         const query = supabase
-            .from('collections')
+            .from('collections_v2')
             .select(selection)
             .eq('private', false)
             .order('created_at', { ascending: false })
@@ -161,11 +161,11 @@ export const getRandomCollections = async (req, res) => {
             limit = 10;
         }
         const max = parseInt(limit, 10);
-        const selection = 'id, category, author, author_public_id, slug, created_at, items, tags';
+        const selection = 'id, category, author, author_public_id, slug, created_at, questions, tags';
 
         // Get all public collections with thumbnails
         const query = supabase
-            .from('collections')
+            .from('collections_v2')
             .select(selection)
             .eq('private', false);
 
@@ -193,7 +193,7 @@ export const getDailyCollection = async (req, res) => {
 
         // Get all public collection IDs and created_at
         const { data: idData, error: idError } = await supabase
-            .from('collections')
+            .from('collections_v2')
             .select('id,created_at')
             .eq('private', false);
         if (idError) {
@@ -228,9 +228,9 @@ export const getDailyCollection = async (req, res) => {
         }
 
         // Fetch the chosen collection by ID
-        const selection = 'id, category, author, author_public_id, slug, created_at, items, tags';
+        const selection = 'id, category, author, author_public_id, slug, created_at, questions, tags';
         const query = supabase
-            .from('collections')
+            .from('collections_v2')
             .select(selection)
             .eq('id', chosenId)
             .eq('private', false);
@@ -274,19 +274,19 @@ export const getPaginatedCollections = async (req, res) => {
 
         // Get total count
         const { count: totalCount, error: countError } = await supabase
-            .from('collections')
+            .from('collections_v2')
             .select('*', { count: 'exact', head: true })
             .eq('private', false);
 
         if (countError) {
             return res.status(500).json({ error: countError.message });
         }        // Special handling for size sorting (items array length)
-        const selection = 'id, category, author, author_public_id, slug, created_at, items, tags';
+        const selection = 'id, category, author, author_public_id, slug, created_at, questions, tags';
         if (sortMode === "size") {
             // For size sorting, we need to get all data and sort in JavaScript
             // since we can't sort by array length directly in Supabase
             const allQuery = supabase
-                .from('collections')
+                .from('collections_v2')
                 .select(selection)
                 .eq('private', false);
 
@@ -331,7 +331,7 @@ export const getPaginatedCollections = async (req, res) => {
                 // If filtering is needed, get all data first, then filter and paginate
 
                 const allQuery = supabase
-                    .from('collections')
+                    .from('collections_v2')
                     .select(selection)
                     .eq('private', false);
 
@@ -401,7 +401,7 @@ export const getPaginatedCollections = async (req, res) => {
             } else {
                 // No filtering needed, use efficient database sorting
                 let query = supabase
-                    .from('collections')
+                    .from('collections_v2')
                     .select(selection)
                     .eq('private', false)
                     .order(sortColumn, { ascending })
@@ -438,11 +438,11 @@ export const searchCollections = async (req, res) => {
     try {
         const { searchTerm } = req.query;
 
-        const selection = 'id, category, author, author_public_id, slug, created_at, items, tags';
+        const selection = 'id, category, author, author_public_id, slug, created_at, questions, tags';
 
         // Step 1: Get matching results with thumbnails
         const matchingQuery = supabase
-            .from('collections')
+            .from('collections_v2')
             .select(selection)
             .eq('private', false)
             .or(`category.ilike.%${searchTerm}%,tags.ilike.%${searchTerm}%`);
@@ -463,7 +463,7 @@ export const searchCollections = async (req, res) => {
         const excludeIds = matching.map(item => item.id); // assume you have `id` field
 
         const fillerQuery = supabase
-            .from('collections')
+            .from('collections_v2')
             .select(selection)
             .eq('private', false)
             .not('id', 'in', `(${excludeIds.join(',')})`)
@@ -491,10 +491,10 @@ export const getCollectionsByTag = async (req, res) => {
             return res.status(400).json({ error: 'Tag parameter is required' });
         }
         const searchTag = tag.trim().toLowerCase();
-        const selection = 'id, category, author, author_public_id, slug, created_at, items, tags';
+        const selection = 'id, category, author, author_public_id, slug, created_at, questions, tags';
         // Fetch collections where tags ilike the tag (broad match)
         const query = supabase
-            .from('collections')
+            .from('collections_v2')
             .select(selection)
             .eq('private', false)
             .ilike('tags', `%${searchTag}%`);
@@ -530,11 +530,22 @@ export const getUserCollectionById = async (req, res) => {
             return res.status(401).json({ error: 'No token provided' });
         }
 
+        const selection = '*';
+        // Ensure id is always a string for comparison
+        const idStr = typeof id === 'string' ? id : String(id);
         const { data, error } = await getSupabaseClientWithToken(token)
-            .from('collections')
-            .select('*')
-            .eq("id", id)
+            .from('collections_v2')
+            .select(selection)
+            .eq('id', idStr)
             .single();
+
+        if (error) {
+            console.error('Supabase error:', error.message);
+            return res.status(500).json({ error: error.message });
+        }
+        if (!data) {
+            console.warn('No collection found for id:', idStr);
+        }
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -552,7 +563,7 @@ export const getUserCollectionId = async (req, res) => {
         const { uid, slug } = req.params;
 
         const { data, error } = await supabase
-            .from('collections')
+            .from('collections_v2')
             .select('id')
             .eq('author_public_id', uid)
             .eq('slug', slug)
@@ -575,7 +586,7 @@ export const getUserCollectionId = async (req, res) => {
 export const getUserCollection = async (req, res) => {
     try {
         const { username, collection } = req.params;
-        const { data, error } = await supabase.from('collections').select('*').eq('category', collection).eq('author', username).single();
+        const { data, error } = await supabase.from('collections_v2').select('*').eq('category', collection).eq('author', username).single();
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -592,8 +603,9 @@ export const getUserCollection = async (req, res) => {
 export const getPublicUserCollection = async (req, res) => {
     try {
         const { collectionId } = req.params;
+        const table = 'collections_v2';
         const { data, error } = await supabase
-            .from('collections')
+            .from(table)
             .select('*')
             .eq('id', collectionId)
             .eq('private', false)
@@ -605,7 +617,7 @@ export const getPublicUserCollection = async (req, res) => {
 
         // increment data.times_played by 1 and update the table
         const { error: updateError } = await supabase
-            .from('collections')
+            .from(table)
             .update({ times_played: (data.times_played || 0) + 1 })
             .eq('id', data.id);
         if (updateError) {
@@ -630,25 +642,22 @@ export const getUserCollections = async (req, res) => {
             return res.status(401).json({ error: 'No token provided' });
         }
 
-        const selection = 'category, author, author_public_id, slug, created_at, items, tags, id';
+        console.log('Fetching collections for user:', uid);
 
-        const query = getSupabaseClientWithToken(token)
-            .from('collections')
+
+        const selection = 'id, category, author, author_public_id, slug, created_at, questions, tags, items';
+
+        const query = supabase
+            .from('collections_v2')
             .select(selection)
-            .eq('author_public_id', uid);
+            .eq('author_public_id', uid)
+            .order('created_at', { ascending: false });
 
         const { data, error } = await getCollectionsWithItemsCount(query, selection, true);
 
         if (error) {
             return res.status(500).json({ error: error.message });
         }
-
-        // add items to data
-        if (!data || data.length === 0) {
-            return res.status(404).json({ error: 'No collections found for this user' });
-        }
-
-
 
         res.status(200).json(data);
     } catch (err) {
@@ -670,9 +679,9 @@ export const getAllUserCollections = async (req, res) => {
         const ascending = order === 'asc';
 
         // Use the helper function to get collections with items count and thumbnails
-        const selection = 'id, category, author, author_public_id, slug, created_at, items, tags, private, description';
+        const selection = 'id, category, author, author_public_id, slug, created_at, questions, tags, private, description';
         const query = supabase
-            .from('collections')
+            .from('collections_v2')
             .select(selection)
             .eq('author_public_id', uid)
             .eq('private', false)
@@ -720,7 +729,7 @@ export const createNewCollection = async (req, res) => {
 
         // ✅ Proceed with insertion
         const { data, error } = await getSupabaseClientWithToken(token)
-            .from('collections')
+            .from('collections_v2')
             .insert([{
                 category,
                 author,
@@ -755,7 +764,7 @@ export const renameCollection = async (req, res) => {
         }
 
         // use supabase to find collection with oldName and change the collection name to newName
-        const { data, error } = await getSupabaseClientWithToken(token).from('collections').update({ category: newCategory }).eq('category', oldCategory).select();
+        const { data, error } = await getSupabaseClientWithToken(token).from('collections_v2').update({ category: newCategory }).eq('category', oldCategory).select();
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -776,7 +785,7 @@ export const deleteCollection = async (req, res) => {
             return res.status(401).json({ error: 'No token provided' });
         }
 
-        const { data, error } = await getSupabaseClientWithToken(token).from('collections').delete().eq('id', collectionId).eq('author_public_id', uid);
+        const { data, error } = await getSupabaseClientWithToken(token).from('collections_v2').delete().eq('id', collectionId).eq('author_public_id', uid);
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -797,7 +806,7 @@ export const setVisible = async (req, res) => {
         }
 
         const { data, error } = await getSupabaseClientWithToken(token)
-            .from('collections')
+            .from('collections_v2')
             .update({ private: !visible })
             .eq('category', category)
             .eq('author_public_id', author_public_id)
@@ -827,7 +836,7 @@ export const updateCollection = async (req, res) => {
         const last_modified = new Date().toISOString();
 
         const { data: updatedData, error } = await getSupabaseClientWithToken(token)
-            .from('collections')
+            .from('collections_v2')
             .update({
                 private: isPrivate,
                 tags,
@@ -861,7 +870,7 @@ export const getCollectionThumbnailEndpoint = async (req, res) => {
         const mockCollection = {
             author: username,
             category: category,
-            items: [] // We'll need to fetch items if no dedicated thumbnail exists
+            questions: [] // We'll need to fetch items if no dedicated thumbnail exists
         };
 
         // First try to get the dedicated thumbnail
@@ -870,15 +879,15 @@ export const getCollectionThumbnailEndpoint = async (req, res) => {
         // If no dedicated thumbnail, fetch the collection to get items
         if (!thumbnail) {
             const { data: collectionData, error } = await supabase
-                .from('collections')
-                .select('items')
+                .from('collections_v2')
+                .select('questions')
                 .eq('author', username)
                 .eq('category', category)
                 .eq('private', false)
                 .single();
 
             if (!error && collectionData) {
-                mockCollection.items = collectionData.items;
+                mockCollection.questions = collectionData.questions;
                 thumbnail = await getCollectionThumbnail(mockCollection);
             }
         }
@@ -898,7 +907,7 @@ export const getRecommendedTags = async (req, res) => {
     }
     try {
         const { data, error } = await supabase
-            .from('collections')
+            .from('collections_v2')
             .select('tags')
             .eq('private', false);
 

@@ -7,7 +7,7 @@ export const transformCollectionData = (data, includeThumbnail = false) => {
     }
     return data.map(collection => ({
         ...collection,
-        itemsLength: collection.items ? collection.items.length : 0,
+        itemsLength: Array.isArray(collection.questions) ? collection.questions.length : 0,
         thumbnail: includeThumbnail ? null : undefined, // Placeholder for thumbnail, will be populated async if needed
         items: undefined // Remove items array to keep response lean
     }));
@@ -23,7 +23,7 @@ export const transformCollectionDataWithThumbnails = async (data) => {
         const thumbnail = await getCollectionThumbnail(collection);
         return {
             ...collection,
-            itemsLength: collection.items ? collection.items.length : 0,
+            itemsLength: Array.isArray(collection.questions) ? collection.questions.length : 0,
             thumbnail,
             items: undefined // Remove items array to keep response lean
         };
@@ -70,9 +70,10 @@ export const filterCollections = (collections, filter) => {
 };
 
 // Helper: Get collections with items count
-export const getCollectionsWithItemsCount = async (query, selectFields = 'category, author, author_public_id, slug, created_at, items, tags', includeThumbnails = false) => {
+export const getCollectionsWithItemsCount = async (query, selectFields = 'category, author, author_public_id, slug, created_at, questions, tags', includeThumbnails = false) => {
     // First get collections with items for counting
     const { data, error } = await query.select(selectFields);
+
 
     if (error) {
         return { data: null, error };
@@ -99,44 +100,41 @@ export const getCollectionThumbnail = async (collection) => {
         return null;
     }
 
-    // sterilize author and category names to ensure they are safe for use in paths
-    const sanitizeName = (name) => {
-        return name.replace(/[^a-zA-Z0-9-_]/g, '_');
-    };
+    const slugify = str => str
+        .toString()
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036F]/g, '')
+        .replace(/[^a-zA-Z0-9-_]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .toLowerCase();
+    const slugifiedFolder = slugify(collection.author + "_" + collection.category || 'unknown');
+    const r2BaseUrl = process.env.AWS_S3_PUBLIC_URL || '';
+    const thumbnailUrl = `${r2BaseUrl}/thumbnails/${slugifiedFolder}/thumbnail.jpg`;
 
-    // Try sanitized path first
-    const sanitizedPath = sanitizeName(`${collection.author}/${collection.category}`) + "/thumbnail.jpg";
-    const unsanitizedPath = `${collection.author}/${collection.category}/thumbnail.jpg`;
-
-    for (const thumbnailPath of [sanitizedPath, unsanitizedPath]) {
-        console.log(`Checking thumbnail path: ${thumbnailPath}`);
-        try {
-            // Get the public URL for the thumbnail
-            const { data: thumbnailData } = supabase.storage
-                .from('uploads')
-                .getPublicUrl(thumbnailPath);
-
-            if (thumbnailData?.publicUrl) {
-                // Validate if the thumbnail actually exists by making a HEAD request
-                try {
-                    const response = await fetch(thumbnailData.publicUrl, { method: 'HEAD' });
-                    if (response.ok) {
-                        return thumbnailData.publicUrl;
-                    }
-                } catch (fetchError) {
-                    console.log(`Thumbnail validation failed for ${thumbnailPath}:`, fetchError.message);
-                }
-            }
-        } catch (storageError) {
-            console.log(`Storage error for thumbnail ${thumbnailPath}:`, storageError.message);
+    // Validate if the thumbnail actually exists by making a HEAD request
+    try {
+        const response = await fetch(thumbnailUrl, { method: 'HEAD' });
+        if (response.ok) {
+            return thumbnailUrl;
         }
+    } catch (fetchError) {
+        console.log(`Thumbnail validation failed for ${thumbnailUrl}:`, fetchError.message);
     }
 
-    // Fallback: try to get the first item's image
-    if (collection.items && Array.isArray(collection.items) && collection.items.length > 0) {
-        const firstItem = collection.items[0];
-        if (firstItem && firstItem.image) {
-            return firstItem.image;
+    // Fallback: fetch the first item's prompt from Supabase 'questions' table
+    if (collection.questions && Array.isArray(collection.questions) && collection.questions.length > 0) {
+        const firstQuestionId = collection.questions[0];
+        if (firstQuestionId) {
+            const { data: questionData, error } = await supabase
+                .from('questions')
+                .select('prompt')
+                .eq('id', firstQuestionId)
+                .single();
+
+            if (!error && questionData && questionData.prompt) {
+                return `${questionData.prompt}`;
+            }
         }
     }
 

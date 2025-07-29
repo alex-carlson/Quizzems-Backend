@@ -194,7 +194,7 @@ export const changeUsername = async (req, res) => {
 
         // also loop through collections and update the author to username
         const { error: collectionError } = await supabase
-            .from('collections')
+            .from('collections_v2')
             .update({ author: username })
             .eq('author_uuid', userId);
 
