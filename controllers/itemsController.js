@@ -253,77 +253,124 @@ const AddItemToCollection = async (id, token, category, author_id) => {
 
 export const AddAudioToCollection = async (req, res) => {
     try {
-        const { category, author, author_id, url } = req.body;
-        console.log(req.body);
-        if (!category || !author || !url) {
+        console.log("body:", req.body);
+        const { category, author, id, answer, author_id, collection_id, title, thumbnail, extra, prompt } = req.body;
+
+        // Basic validation
+        if (!category || !author || !collection_id || !author_id || !answer || !prompt) {
+            console.error("Missing required fields:", { category, author, collection_id, author_id });
             return res.status(400).json({ error: "Missing required fields" });
         }
+
+        // Auth check
         const token = getToken(req);
         if (!token) {
+            console.error("No token provided in request headers");
             return res.status(401).json({ error: "No token provided" });
         }
 
-        const finalBody = {
-            // get id, audio, title, answer, and thumbnail from req.body
-            id: req.body.id || null,
-            audio: url || null,
-            title: req.body.title || null,
-            answer: req.body.answer || null,
-            thumbnail: req.body.thumbnail || null
+        const myItem = {
+            id: id,
+            collection_id: collection_id,
+            type: "audio",
+            prompt: prompt || null,
+            answer: answer || null,
+            audio_title: title || null,
+            audio_thumbnail: thumbnail || null,
+            extra: extra || null
+        };
+
+        console.log("Adding audio item:", myItem);
+
+        // Insert into 'questions' table
+        const { data, error } = await supabase
+            .from("questions")
+            .insert([myItem])
+            .select()
+            .single();
+
+        if (error) {
+            console.error("Error inserting audio question:", error);
+            return res.status(500).json({ error: "Failed to insert audio question", details: error.message });
         }
 
-        const myItem = {
-            ...finalBody
-        };
-        console.log("myItem", myItem);
-        const { data: collection, error: fetchError } = await fetchCollection(token, category, author_id);
-        if (fetchError) {
-            console.error("Error fetching collection:", fetchError);
-            return res.status(500).json({ error: "Failed to fetch collection", details: fetchError });
-        }
-        const updatedItems = collection.items ? [...collection.items, myItem.id] : [myItem];
-        const { data, error } = await updateCollectionItems(token, category, updatedItems, author_id);
-        if (error) {
-            console.error("Error updating collection:", error);
-            return res.status(500).json({ error: "Failed to update collection", details: error });
-        }
-        res.status(201).json(data);
+        console.log("audio question added:", data);
+
+        await AddItemToCollection(data.id, token, category, author_id);
+
+        console.log("Audio item added to collection successfully!");
+
+        return res.status(201).json({ message: "Audio question added successfully", question: data });
     } catch (err) {
         console.error("Unexpected error:", err);
-        res.status(500).json({ error: "Internal Server Error", details: err.message });
+        return res.status(500).json({ error: "Internal Server Error", details: err.message });
     }
 };
 
 export const AddQuestionToCollection = async (req, res) => {
     try {
-        const { category, author, uuid, question, answer, author_id } = req.body;
-        if (!category || !author || !question || !answer) {
+        const { category, author, uuid, prompt, answer, author_id, collection_id, type, extra } = req.body;
+
+        // Basic validation
+        if (!category || !author || !prompt || !answer || !collection_id || !author_id) {
+            console.error("Missing required fields:", { category, author, prompt, answer, collection_id, author_id });
             return res.status(400).json({ error: "Missing required fields" });
         }
+
+        // Auth check
         const token = getToken(req);
         if (!token) {
+            console.error("No token provided in request headers");
             return res.status(401).json({ error: "No token provided" });
         }
+
+        // Wait for uploadedImageUrl if not present but file upload is in progress
+        let imageUrl = req.uploadedImageUrl;
+        if (!imageUrl && req.file && typeof req.file === 'object') {
+            imageUrl = await new Promise((resolve) => {
+                const check = () => {
+                    if (req.uploadedImageUrl) {
+                        resolve(req.uploadedImageUrl);
+                    } else {
+                        setTimeout(check, 100);
+                    }
+                };
+                check();
+            });
+        }
+
         const myItem = {
-            id: uuid || null,
-            question: question || null,
-            answer: answer || null
+            id: uuid,
+            collection_id: Number(collection_id),
+            type: type || "text",
+            prompt: prompt || null,
+            answer,
+            extra: extra || null,
+            author_id: author_id || null,
         };
-        const { data: collection, error: fetchError } = await fetchCollection(token, category, author_id);
-        if (fetchError) {
-            console.error("Error fetching collection:", fetchError);
-            return res.status(500).json({ error: "Failed to fetch collection", details: fetchError });
-        }
-        const updatedItems = collection.items ? [...collection.items, myItem.id] : [myItem];
-        const { data, error } = await updateCollectionItems(token, category, updatedItems, author_id);
+
+        // Insert into 'questions' table
+        const { data, error } = await supabase
+            .from("questions")
+            .insert([myItem])
+            .select()
+            .single();
+
         if (error) {
-            console.error("Error updating collection:", error);
-            return res.status(500).json({ error: "Failed to update collection", details: error });
+            console.error("Error inserting question:", error);
+            return res.status(500).json({ error: "Failed to insert question", details: error.message });
         }
-        res.status(201).json(data);
+
+        console.log("question added:", data);
+
+        await AddItemToCollection(data.id, token, category, author_id);
+
+        console.log("Item added to collection successfully!");
+
+        return res.status(201).json({ message: "Question added successfully", question: data });
     } catch (err) {
         console.error("Unexpected error:", err);
-        res.status(500).json({ error: "Internal Server Error", details: err.message });
+        return res.status(500).json({ error: "Internal Server Error", details: err.message });
     }
 };
 
