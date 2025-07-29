@@ -84,7 +84,7 @@ export const getLatestCollections = async (req, res) => {
     try {
         const max = req.limit || 12;
 
-        const selection = 'id, category, author, author_public_id, slug, created_at, questions';
+        const selection = 'id, category, author, author_public_id, slug, created_at, questions, items';
 
         const query = supabase
             .from('collections_v2')
