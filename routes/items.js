@@ -31,7 +31,8 @@ router.post('/add-thumbnail', verifySupabaseToken, upload.single('file'), Upload
 router.post('/remove', verifySupabaseToken, RemoveItemFromCollection);
 router.post('/edit', verifySupabaseToken, EditItemInCollection)
 router.post('/reorder', verifySupabaseToken, ReorderItemInCollection)
-
+router.delete('/remove-thumbnail', verifySupabaseToken, AddThumbnailToCollection);
+router.delete('remove', verifySupabaseToken, RemoveItemFromCollection);
 // Static route
 router.get('/', verifySupabaseToken, (req, res) => {
     res.json({ message: 'You are authenticated!' });
