@@ -99,7 +99,6 @@ export const AddItemToCollection = async (req, res) => {
 export const AddAudioToCollection = async (req, res) => {
     try {
         const { category, author, author_id, url } = req.body;
-        console.log(req.body);
         if (!category || !author || !url) {
             return res.status(400).json({ error: "Missing required fields" });
         }
@@ -120,7 +119,6 @@ export const AddAudioToCollection = async (req, res) => {
         const myItem = {
             ...finalBody
         };
-        console.log("myItem", myItem);
         const { data: collection, error: fetchError } = await fetchCollection(token, category, author_id);
         if (fetchError) {
             console.error("Error fetching collection:", fetchError);
@@ -244,7 +242,6 @@ export const EditItemInCollection = async (req, res) => {
 export const ReorderItemInCollection = async (req, res) => {
     try {
         const { category, items, author_id } = req.body;
-        console.log(items);
         const token = getToken(req);
         if (!token) {
             return res.status(401).json({ error: "No token provided" });
