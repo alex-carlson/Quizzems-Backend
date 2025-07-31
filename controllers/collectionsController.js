@@ -730,6 +730,8 @@ export const createNewCollection = async (req, res) => {
             .from('collections')
             .insert([{
                 category,
+                author,
+                author_id,
                 author_uuid,
                 items: [],
                 private: true,
