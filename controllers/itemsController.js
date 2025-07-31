@@ -36,15 +36,33 @@ export const AddThumbnailToCollection = async (req, res) => {
             return res.status(401).json({ error: "No token provided" });
         }
 
-        // return positively if image is uploaded
-        if (!req.uploadedImageUrl) {
-            return res.status(400).json({ error: "No image uploaded" });
+        const { category, author_id } = req.body;
+
+        // select row in collections table where category and author_id match
+        if (!category || !author_id || !req.uploadedImageUrl) {
+            return res.status(400).json({ error: "Missing required fields" });
         }
-
-        return res.status(200).json({ message: "Image uploaded successfully", imageUrl: req.uploadedImageUrl });
-
+        
+        supabase
+            .from("collections")
+            .update({ thumbnail_url: req.uploadedImageUrl })
+            .eq("category", category)
+            .eq("author_public_id", author_id)
+            .then(({ data, error }) => {
+            if (error) {
+                console.error("Error updating collection thumbnail:", error);
+                return res.status(500).json({ error: "Failed to update collection thumbnail", details: error });
+            }
+            console.log("Thumbnail updated successfully:", data);
+            return res.status(200).json({ message: "Thumbnail updated successfully", data });
+            })
+            .catch((err) => {
+            console.error("Unexpected error while updating thumbnail:", err);
+            res.status(500).json({ error: "Internal Server Error", details: err.message });
+            });
     } catch (err) {
-        handleError(res, err);
+        console.error("Unexpected error in AddThumbnailToCollection:", err);
+        res.status(500).json({ error: "Internal Server Error", details: err.message });
     }
 };
 

@@ -70,7 +70,7 @@ export const filterCollections = (collections, filter) => {
 };
 
 // Helper: Get collections with items count
-export const getCollectionsWithItemsCount = async (query, selectFields = 'category, author, author_public_id, slug, created_at, items, tags', includeThumbnails = false) => {
+export const getCollectionsWithItemsCount = async (query, selectFields = 'category, author, author_public_id, slug, created_at, items, tags, thumbnail_url', includeThumbnails = false) => {
     // First get collections with items for counting
     const { data, error } = await query.select(selectFields);
 
@@ -108,8 +108,27 @@ export const getCollectionThumbnail = async (collection) => {
     const sanitizedPath = sanitizeName(`${collection.author}/${collection.category}`) + "/thumbnail.jpg";
     const unsanitizedPath = `${collection.author}/${collection.category}/thumbnail.jpg`;
 
+    const s3Path = process.env.AWS_S3_PUBLIC_URL || process.env.S3_PUBLIC_URL || process.env.S3_ENDPOINT;
+
+    if (!s3Path) {
+        console.error("S3 public URL is not configured.");
+        return null;
+    }
+
+    // First, try to get thumbnail_url directly from the collection (from Supabase 'collections' table)
+    if (collection.thumbnail_url && typeof collection.thumbnail_url === 'string') {
+        // Validate if the thumbnail actually exists by making a HEAD request
+        try {
+            const response = await fetch(collection.thumbnail_url, { method: 'HEAD' });
+            if (response.ok) {
+                return collection.thumbnail_url;
+            }
+        } catch (fetchError) {
+            console.log(`Thumbnail validation failed for collection.thumbnail_url:`, fetchError.message);
+        }
+    }
+
     for (const thumbnailPath of [sanitizedPath, unsanitizedPath]) {
-        console.log(`Checking thumbnail path: ${thumbnailPath}`);
         try {
             // Get the public URL for the thumbnail
             const { data: thumbnailData } = supabase.storage

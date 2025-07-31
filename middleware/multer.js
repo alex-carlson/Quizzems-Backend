@@ -133,6 +133,10 @@ export const UploadToSupabase = async (req, res, next) => {
         const safeFolder = sanitizeName(folder || "uploads");
         const finalFileName = `${uuid}.${fileExtension}`;
 
+        console.log("🚀 Final file name:", finalFileName);
+        console.log("Safe folder name:", safeFolder);
+        
+
         // Always upload to S3 for new images
         try {
             const publicURL = await uploadToS3(file.buffer, finalFileName, file.mimetype);
