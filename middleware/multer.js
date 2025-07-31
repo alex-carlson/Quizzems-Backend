@@ -1,8 +1,7 @@
 import multer from "multer";
 import axios from "axios";
 import sharp from "sharp";
-import { getSupabaseClientWithToken, supabase } from "../config/supabaseClient.js";
-// AWS S3 (R2) support
+import { limit } from "../utils/rateLimit.js";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
 const storage = multer.memoryStorage();
@@ -46,56 +45,59 @@ function sanitizeName(name) {
 }
 
 export const uploadUrlToSupabase = async (req, res, next) => {
-    try {
-        const { folder, uuid, bucket: reqBucket, fileName, forceJpeg, useS3 } = req.body;
-        const token = req.headers.authorization?.split(" ")[1];
-        const bucket = reqBucket || "quizzems";
-        const fileUrl = req.body.url;
-
-        if (!token) return res.status(401).json({ message: "No token provided" });
-        if (!fileUrl) return res.status(400).json({ message: "Please provide a file URL." });
-
-        console.log("🚀 Uploading to S3 from URL:", {
-            folder, uuid, bucket, fileUrl, fileName,
-        });
-
-        const fileResponse = await axios.get(fileUrl, { responseType: "arraybuffer" });
-        let fileBuffer = Buffer.from(fileResponse.data, "binary");
-        let contentType = fileResponse.headers["content-type"] || "application/octet-stream";
-        let finalFileName = fileName || uuid;
-
-        // Convert to JPEG if requested
-        if (forceJpeg === true || forceJpeg === "true") {
-            console.log("🔄 Converting URL image to JPEG");
-            fileBuffer = await sharp(fileBuffer)
-                .jpeg({ quality: 80 })
-                .toBuffer();
-            contentType = "image/jpeg";
-            finalFileName = `${uuid}.jpg`;
-        } else {
-            let fileExtension = "";
-            const lastDotIndex = fileUrl.lastIndexOf(".");
-            if (lastDotIndex !== -1 && lastDotIndex < fileUrl.length - 1) {
-                fileExtension = fileUrl.substring(lastDotIndex + 1).split(/[?#]/)[0];
-            }
-            finalFileName = fileName || `${uuid}.${fileExtension}`;
-        }
-
-        // Always upload to S3 for new images
+    await limit(async () => {
         try {
-            const publicURL = await uploadToS3(fileBuffer, finalFileName, contentType);
-            console.log("🚀 S3 Public URL:", publicURL);
-            req.uploadedImageUrl = publicURL;
-            return next();
+            const { folder, uuid, bucket: reqBucket, fileName, forceJpeg, useS3 } = req.body;
+            const token = req.headers.authorization?.split(" ")[1];
+            const bucket = reqBucket || "quizzems";
+            const fileUrl = req.body.url;
+
+            if (!token) return res.status(401).json({ message: "No token provided" });
+            if (!fileUrl) return res.status(400).json({ message: "Please provide a file URL." });
+
+            console.log("🚀 Uploading to S3 from URL:", {
+                folder, uuid, bucket, fileUrl, fileName,
+            });
+
+            const fileResponse = await axios.get(fileUrl, { responseType: "arraybuffer" });
+            let fileBuffer = Buffer.from(fileResponse.data, "binary");
+            let contentType = fileResponse.headers["content-type"] || "application/octet-stream";
+            let finalFileName = fileName || uuid;
+
+            // Convert to JPEG if requested
+            if (forceJpeg === true || forceJpeg === "true") {
+                console.log("🔄 Converting URL image to JPEG");
+                fileBuffer = await sharp(fileBuffer)
+                    .jpeg({ quality: 80 })
+                    .toBuffer();
+                contentType = "image/jpeg";
+                finalFileName = `${uuid}.jpg`;
+            } else {
+                let fileExtension = "";
+                const lastDotIndex = fileUrl.lastIndexOf(".");
+                if (lastDotIndex !== -1 && lastDotIndex < fileUrl.length - 1) {
+                    fileExtension = fileUrl.substring(lastDotIndex + 1).split(/[?#]/)[0];
+                }
+                finalFileName = fileName || `${uuid}.${fileExtension}`;
+            }
+
+            // Always upload to S3 for new images
+            try {
+                const publicURL = await uploadToS3(fileBuffer, finalFileName, contentType);
+                console.log("🚀 S3 Public URL:", publicURL);
+                req.uploadedImageUrl = publicURL;
+                return next();
+            } catch (error) {
+                console.error("❌ S3 Upload Error:", error);
+                return res.status(400).json({ message: "Failed to upload to S3", details: error.message });
+            }
         } catch (error) {
-            console.error("❌ S3 Upload Error:", error);
-            return res.status(400).json({ message: "Failed to upload to S3", details: error.message });
+            console.error("❌ Unexpected Error:", error);
+            res.status(500).json({ message: "Internal Server Error", details: error.message });
         }
-    } catch (error) {
-        console.error("❌ Unexpected Error:", error);
-        res.status(500).json({ message: "Internal Server Error", details: error.message });
-    }
+    });
 };
+
 
 export const UploadToSupabase = async (req, res, next) => {
     try {
@@ -135,7 +137,7 @@ export const UploadToSupabase = async (req, res, next) => {
 
         console.log("🚀 Final file name:", finalFileName);
         console.log("Safe folder name:", safeFolder);
-        
+
 
         // Always upload to S3 for new images
         try {

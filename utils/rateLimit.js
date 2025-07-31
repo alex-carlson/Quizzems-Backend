@@ -1,0 +1,3 @@
+// utils/rateLimit.js
+import pLimit from 'p-limit';
+export const limit = pLimit(2); // 2 concurrent requests
