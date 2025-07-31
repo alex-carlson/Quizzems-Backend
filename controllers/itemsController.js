@@ -42,23 +42,23 @@ export const AddThumbnailToCollection = async (req, res) => {
         if (!category || !author_id || !req.uploadedImageUrl) {
             return res.status(400).json({ error: "Missing required fields" });
         }
-        
+
         supabase
             .from("collections")
             .update({ thumbnail_url: req.uploadedImageUrl })
             .eq("category", category)
             .eq("author_public_id", author_id)
             .then(({ data, error }) => {
-            if (error) {
-                console.error("Error updating collection thumbnail:", error);
-                return res.status(500).json({ error: "Failed to update collection thumbnail", details: error });
-            }
-            console.log("Thumbnail updated successfully:", data);
-            return res.status(200).json({ message: "Thumbnail updated successfully", data });
+                if (error) {
+                    console.error("Error updating collection thumbnail:", error);
+                    return res.status(500).json({ error: "Failed to update collection thumbnail", details: error });
+                }
+                console.log("Thumbnail updated successfully:", data);
+                return res.status(200).json({ message: "Thumbnail updated successfully", data });
             })
             .catch((err) => {
-            console.error("Unexpected error while updating thumbnail:", err);
-            res.status(500).json({ error: "Internal Server Error", details: err.message });
+                console.error("Unexpected error while updating thumbnail:", err);
+                res.status(500).json({ error: "Internal Server Error", details: err.message });
             });
     } catch (err) {
         console.error("Unexpected error in AddThumbnailToCollection:", err);

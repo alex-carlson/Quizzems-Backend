@@ -70,7 +70,7 @@ export const filterCollections = (collections, filter) => {
 };
 
 // Helper: Get collections with items count
-export const getCollectionsWithItemsCount = async (query, selectFields = 'category, author, author_public_id, slug, created_at, items, tags, thumbnail_url', includeThumbnails = false) => {
+export const getCollectionsWithItemsCount = async (query, selectFields = 'category, author, profiles(public_id), slug, created_at, items, tags, thumbnail_url', includeThumbnails = false) => {
     // First get collections with items for counting
     const { data, error } = await query.select(selectFields);
 
@@ -95,7 +95,7 @@ export const getCollectionsWithItemsCount = async (query, selectFields = 'catego
 
 // Helper: Get collection thumbnail with fallback logic
 export const getCollectionThumbnail = async (collection) => {
-    if (!collection || !collection.author || !collection.category) {
+    if (!collection || !collection.profiles.username || !collection.category) {
         return null;
     }
 
@@ -105,8 +105,8 @@ export const getCollectionThumbnail = async (collection) => {
     };
 
     // Try sanitized path first
-    const sanitizedPath = sanitizeName(`${collection.author}/${collection.category}`) + "/thumbnail.jpg";
-    const unsanitizedPath = `${collection.author}/${collection.category}/thumbnail.jpg`;
+    const sanitizedPath = sanitizeName(`${collection.profiles.username}/${collection.category}`) + "/thumbnail.jpg";
+    const unsanitizedPath = `${collection.profiles.username}/${collection.category}/thumbnail.jpg`;
 
     const s3Path = process.env.AWS_S3_PUBLIC_URL || process.env.S3_PUBLIC_URL || process.env.S3_ENDPOINT;
 

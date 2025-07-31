@@ -11,7 +11,7 @@ import {
 
 export const getAllCollections = async (req, res) => {
     try {
-        const selection = 'category, author, author_public_id, slug, created_at, items, tags, thumbnail_url';
+        const selection = 'category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items, tags, thumbnail_url';
         const query = supabase
             .from('collections')
             .select(selection)
@@ -84,7 +84,7 @@ export const getLatestCollections = async (req, res) => {
     try {
         const max = req.limit || 12;
 
-        const selection = 'id, category, author, author_public_id, slug, created_at, items, thumbnail_url';
+        const selection = 'id, category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items, thumbnail_url';
 
         const query = supabase
             .from('collections')
@@ -108,7 +108,7 @@ export const getLatestCollections = async (req, res) => {
 export const getMostPopularCollections = async (req, res) => {
     try {
         const max = req.limit || 12;
-        const selection = 'id, category, author, author_public_id, slug, created_at, items, times_played, tags, thumbnail_url';
+        const selection = 'id, category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items, times_played, tags, thumbnail_url';
         const query = supabase
             .from('collections')
             .select(selection)
@@ -130,7 +130,7 @@ export const getLatestCollectionsWithThumbnails = async (req, res) => {
     try {
         const max = req.params.limit || 12;
 
-        const selection = 'id, category, author, author_public_id, slug, created_at, items, tags, thumbnail_url';
+        const selection = 'id, category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items, tags, thumbnail_url';
 
         const query = supabase
             .from('collections')
@@ -161,7 +161,7 @@ export const getRandomCollections = async (req, res) => {
             limit = 10;
         }
         const max = parseInt(limit, 10);
-        const selection = 'id, category, author, author_public_id, slug, created_at, items, tags, thumbnail_url';
+        const selection = 'id, category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items, tags, thumbnail_url';
 
         // Get all public collections with thumbnails
         const query = supabase
@@ -194,7 +194,7 @@ export const getDailyCollection = async (req, res) => {
         // Get all public collection IDs and created_at
         const { data: idData, error: idError } = await supabase
             .from('collections')
-            .select('id,created_at')
+            .select('id, created_at')
             .eq('private', false);
         if (idError) {
             return res.status(500).json({ error: idError.message });
@@ -228,7 +228,7 @@ export const getDailyCollection = async (req, res) => {
         }
 
         // Fetch the chosen collection by ID
-        const selection = 'id, category, author, author_public_id, slug, created_at, items, tags, thumbnail_url';
+        const selection = 'id, category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items, tags, thumbnail_url';
         const query = supabase
             .from('collections')
             .select(selection)
@@ -281,7 +281,7 @@ export const getPaginatedCollections = async (req, res) => {
         if (countError) {
             return res.status(500).json({ error: countError.message });
         }        // Special handling for size sorting (items array length)
-        const selection = 'id, category, author, author_public_id, slug, created_at, items, tags, thumbnail_url';
+        const selection = 'id, category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items, tags, thumbnail_url';
         if (sortMode === "size") {
             // For size sorting, we need to get all data and sort in JavaScript
             // since we can't sort by array length directly in Supabase
@@ -438,7 +438,7 @@ export const searchCollections = async (req, res) => {
     try {
         const { searchTerm } = req.query;
 
-        const selection = 'id, category, author, author_public_id, slug, created_at, items, tags, thumbnail_url';
+        const selection = 'id, category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items, tags, thumbnail_url';
 
         // Step 1: Get matching results with thumbnails
         const matchingQuery = supabase
@@ -491,7 +491,7 @@ export const getCollectionsByTag = async (req, res) => {
             return res.status(400).json({ error: 'Tag parameter is required' });
         }
         const searchTag = tag.trim().toLowerCase();
-        const selection = 'id, category, author, author_public_id, slug, created_at, items, tags, thumbnail_url';
+        const selection = 'id, category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items, tags, thumbnail_url';
         // Fetch collections where tags ilike the tag (broad match)
         const query = supabase
             .from('collections')
@@ -532,7 +532,7 @@ export const getUserCollectionById = async (req, res) => {
 
         const { data, error } = await getSupabaseClientWithToken(token)
             .from('collections')
-            .select('*')
+            .select('*, profiles(username, public_id, username_slug)')
             .eq("id", id)
             .single();
 
@@ -547,25 +547,29 @@ export const getUserCollectionById = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
+
 export const getUserCollectionId = async (req, res) => {
     try {
         const { uid, slug } = req.params;
 
         const { data, error } = await supabase
             .from('collections')
-            .select('id')
-            .eq('author_public_id', uid)
-            .eq('slug', slug)
-            .single();
+            .select('id, slug, author_uuid, profiles(public_id)')
+            .eq('slug', slug);
+
         if (error) {
-            console.error('Error fetching collection ID:', error);
+            console.error('Error:', error);
             return res.status(500).json({ error: error.message });
         }
-        if (!data) {
+
+        const match = data.find(c => String(c.profiles?.public_id) === String(uid));
+
+        if (!match) {
             return res.status(404).json({ error: 'Collection not found' });
         }
 
-        res.status(200).json({ id: data.id });
+        res.status(200).json({ id: match.id });
+
     } catch (err) {
         console.error('Error in getUserCollectionId:', err);
         res.status(500).json({ error: 'Internal Server Error' });
@@ -575,7 +579,7 @@ export const getUserCollectionId = async (req, res) => {
 export const getUserCollection = async (req, res) => {
     try {
         const { username, collection } = req.params;
-        const { data, error } = await supabase.from('collections').select('*').eq('category', collection).eq('author', username).single();
+        const { data, error } = await supabase.from('collections').select('*, profiles(username, public_id, username_slug)').eq('category', collection).eq('author', username).single();
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -594,7 +598,7 @@ export const getPublicUserCollection = async (req, res) => {
         const { collectionId } = req.params;
         const { data, error } = await supabase
             .from('collections')
-            .select('*')
+            .select('*, profiles(username, public_id, username_slug)')
             .eq('id', collectionId)
             .eq('private', false)
             .single();
@@ -630,8 +634,9 @@ export const getUserCollections = async (req, res) => {
             return res.status(401).json({ error: 'No token provided' });
         }
 
-        const selection = 'category, author, author_public_id, slug, created_at, items, tags, id, thumbnail_url';
+        const selection = 'category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items, tags, id, thumbnail_url';
 
+        // Use .eq('author_uuid', uid) to filter by user, then join profiles
         const query = getSupabaseClientWithToken(token)
             .from('collections')
             .select(selection)
@@ -643,12 +648,9 @@ export const getUserCollections = async (req, res) => {
             return res.status(500).json({ error: error.message });
         }
 
-        // add items to data
         if (!data || data.length === 0) {
             return res.status(404).json({ error: 'No collections found for this user' });
         }
-
-
 
         res.status(200).json(data);
     } catch (err) {
@@ -670,11 +672,10 @@ export const getAllUserCollections = async (req, res) => {
         const ascending = order === 'asc';
 
         // Use the helper function to get collections with items count and thumbnails
-        const selection = 'id, category, author, author_public_id, slug, created_at, items, tags, private, description, thumbnail_url';
+        const selection = 'id, category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items, tags, private, description, thumbnail_url';
         const query = supabase
             .from('collections')
             .select(selection)
-            .eq('author_public_id', uid)
             .eq('private', false)
             .order(sortField, { ascending });
 
@@ -684,7 +685,13 @@ export const getAllUserCollections = async (req, res) => {
             console.error('Error fetching user collections:', error);
             return res.status(500).json({ error: error.message });
         }
-        res.json(data);
+
+        // Filter collections where profiles.public_id matches uid
+        const filteredData = (data || []).filter(
+            col => String(col.profiles?.public_id) === String(uid)
+        );
+
+        res.json(filteredData);
     } catch (err) {
         console.error('Error in getAllUserCollections:', err);
         res.status(500).json({ error: 'Internal Server Error' });
@@ -723,8 +730,6 @@ export const createNewCollection = async (req, res) => {
             .from('collections')
             .insert([{
                 category,
-                author,
-                "author_public_id": author_id,
                 author_uuid,
                 items: [],
                 private: true,
@@ -790,7 +795,7 @@ export const deleteCollection = async (req, res) => {
 
 export const setVisible = async (req, res) => {
     try {
-        const { category, author_public_id, visible } = req.body;
+        const { category, author_public_id: public_id, visible } = req.body;
         const token = req.headers.authorization?.split(' ')[1];
         if (!token) {
             return res.status(401).json({ error: 'No token provided' });
@@ -800,8 +805,8 @@ export const setVisible = async (req, res) => {
             .from('collections')
             .update({ private: !visible })
             .eq('category', category)
-            .eq('author_public_id', author_public_id)
-            .select('*');
+            .eq('profiles(public_id)', public_id)
+            .select('*, profiles(username, public_id, username_slug)');
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -837,7 +842,7 @@ export const updateCollection = async (req, res) => {
                 slug
             })
             .eq('id', collectionId)
-            .select('*');
+            .select('*, profiles(username, public_id, username_slug)');
 
         if (error) {
             return res.status(500).json({ error: error.message });
