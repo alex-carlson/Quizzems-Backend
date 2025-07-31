@@ -27,5 +27,5 @@ jobs:
             cd ${{ secrets.EC2_PATH }} &&
             git pull origin main &&
             npm install --production &&
-            pm2 restart expxress-app || pm2 start server.js --name expxress-app
+            pm2 start ecosystem.config.cjs --update-env
           "
