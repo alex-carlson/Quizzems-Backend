@@ -708,6 +708,8 @@ export const createNewCollection = async (req, res) => {
 
         const { category, author_id, author, author_uuid } = req.body;
 
+        console.log("Body contents:", req.body);
+
         // ✅ Validate required fields first
         if (!category || !author || !author_id || !author_uuid) {
             return res.status(400).json({ error: 'Missing category, author, or author_id' });
@@ -731,7 +733,7 @@ export const createNewCollection = async (req, res) => {
             .insert([{
                 category,
                 author,
-                author_id,
+                author_public_id: author_id,
                 author_uuid,
                 items: [],
                 private: true,
