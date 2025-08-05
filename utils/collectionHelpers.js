@@ -70,7 +70,6 @@ export const filterCollections = (collections, filter) => {
 
 // Helper: Get collection thumbnail with fallback logic
 export const getCollectionThumbnail = async (collection) => {
-    console.log("🔄 Getting thumbnail for collection:", collection.id);
     if (!collection || !collection.profiles.username || !collection.category) {
         return null;
     }

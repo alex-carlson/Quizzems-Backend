@@ -3,6 +3,7 @@ import collectionRoutes from './collections.js';
 import itemRoutes from './items.js';
 import userRoutes from './users.js';
 import partyRoutes from './party.js';
+import youtubeRoutes from './youtube.js'; // Assuming you have a youtube.js router
 
 const router = Router();
 
@@ -11,4 +12,5 @@ router.use('/collections', collectionRoutes); // Add collections route
 router.use('/items', itemRoutes);
 router.use('/users', userRoutes);
 router.use('/party', partyRoutes);
+router.use('/youtube', youtubeRoutes);
 export default router;
