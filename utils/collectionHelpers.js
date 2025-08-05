@@ -1,16 +1,20 @@
 import { supabase } from '../config/supabaseClient.js';
 
 // Helper: Transform collection data to include items count and remove items array
-export const transformCollectionData = (data, includeThumbnail = false) => {
-    if (!data || !Array.isArray(data)) {
-        return [];
-    }
-    return data.map(collection => ({
+function baseTransformCollection(collection, includeThumbnail) {
+    return {
         ...collection,
         itemsLength: collection.items ? collection.items.length : 0,
         thumbnail: includeThumbnail ? null : undefined, // Placeholder for thumbnail, will be populated async if needed
         items: undefined // Remove items array to keep response lean
-    }));
+    };
+}
+
+export const transformCollectionData = (data, includeThumbnail = false) => {
+    if (!data || !Array.isArray(data)) {
+        return [];
+    }
+    return data.map(collection => baseTransformCollection(collection, includeThumbnail));
 };
 
 // Helper: Transform collection data with thumbnails (async version)
@@ -18,18 +22,13 @@ export const transformCollectionDataWithThumbnails = async (data) => {
     if (!data || !Array.isArray(data)) {
         return [];
     }
-
-    const transformedData = await Promise.all(data.map(async (collection) => {
+    return Promise.all(data.map(async (collection) => {
         const thumbnail = await getCollectionThumbnail(collection);
         return {
-            ...collection,
-            itemsLength: collection.items ? collection.items.length : 0,
+            ...baseTransformCollection(collection, false),
             thumbnail,
-            items: undefined // Remove items array to keep response lean
         };
     }));
-
-    return transformedData;
 };
 
 // Helper: Filter collections by search term in title (category) or tags
@@ -69,32 +68,9 @@ export const filterCollections = (collections, filter) => {
     return filtered;
 };
 
-// Helper: Get collections with items count
-export const getCollectionsWithItemsCount = async (query, selectFields = 'category, author, profiles(public_id), slug, created_at, items, tags, thumbnail_url', includeThumbnails = false) => {
-    // First get collections with items for counting
-    const { data, error } = await query.select(selectFields);
-
-    if (error) {
-        return { data: null, error };
-    }
-
-    if (!data) {
-        return { data: [], error: null };
-    }
-
-    // Transform data to include items count and optionally thumbnails
-    let transformedData;
-    if (includeThumbnails) {
-        transformedData = await transformCollectionDataWithThumbnails(data);
-    } else {
-        transformedData = transformCollectionData(data);
-    }
-
-    return { data: transformedData, error: null };
-};
-
 // Helper: Get collection thumbnail with fallback logic
 export const getCollectionThumbnail = async (collection) => {
+    console.log("🔄 Getting thumbnail for collection:", collection.id);
     if (!collection || !collection.profiles.username || !collection.category) {
         return null;
     }
@@ -140,6 +116,19 @@ export const getCollectionThumbnail = async (collection) => {
                 try {
                     const response = await fetch(thumbnailData.publicUrl, { method: 'HEAD' });
                     if (response.ok) {
+                        // apply thumbnailData.publicUrl to collection.thumbnail_url
+                        // use supabase to upload the thumbnail if it doesn't exist
+                        if (!collection.thumbnail_url) {
+                            console.log(`Updating collection ${collection.id} with thumbnail_url: ${thumbnailData.publicUrl}`);
+                            const { error } = await supabase
+                                .from('collections')
+                                .update({ thumbnail_url: thumbnailData.publicUrl })
+                                .eq('id', collection.id);
+
+                            if (error) {
+                                console.error(`Failed to update collection thumbnail_url for ${collection.id}:`, error.message);
+                            }
+                        }
                         return thumbnailData.publicUrl;
                     }
                 } catch (fetchError) {
@@ -151,10 +140,43 @@ export const getCollectionThumbnail = async (collection) => {
         }
     }
 
+    console.log(`No thumbnail found in storage for collection ${collection.id}. Trying first item image as fallback.`);
+
+    // get items
+    const { data, error } = await supabase
+        .from('collections')
+        .select('id, items')
+        .eq('id', collection.id);
+
+    if (error) {
+        console.error(`Error fetching items for collection ${collection.id}:`, error.message);
+        return null;
+    }
+
+    const items = data?.[0]?.items || [];
+
+    console.log(`Found ${items.length} items in collection ${collection.id}.`);
+    if (items.length === 0) {
+        console.log(`No items found in collection ${collection.id}. Returning null.`);
+        return null;
+    }
+
     // Fallback: try to get the first item's image
-    if (collection.items && Array.isArray(collection.items) && collection.items.length > 0) {
-        const firstItem = collection.items[0];
+    if (items && Array.isArray(items) && items.length > 0) {
+        const firstItem = items[0];
         if (firstItem && firstItem.image) {
+            // upload the firstItem.image as thumbnail_url to supabase table
+            if (!collection.thumbnail_url) {
+                console.log(`Updating collection ${collection.id} with first item image as thumbnail_url: ${firstItem.image}`);
+                const { error } = await supabase
+                    .from('collections')
+                    .update({ thumbnail_url: firstItem.image })
+                    .eq('id', collection.id);
+
+                if (error) {
+                    console.error(`Failed to update collection thumbnail_url for ${collection.id}:`, error.message);
+                }
+            }
             return firstItem.image;
         }
     }
@@ -167,14 +189,11 @@ export const addThumbnailsToCollections = async (collections) => {
     if (!collections || !Array.isArray(collections)) {
         return collections;
     }
-
-    const collectionsWithThumbnails = await Promise.all(collections.map(async (collection) => {
+    return Promise.all(collections.map(async (collection) => {
         const thumbnail = await getCollectionThumbnail(collection);
         return {
             ...collection,
             thumbnail
         };
     }));
-
-    return collectionsWithThumbnails;
 };
