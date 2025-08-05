@@ -331,12 +331,20 @@ export const getPaginatedCollections = async (req, res) => {
             // Apply pagination
             const paginatedData = sortedData.slice(offset, offset + limitNum);
 
+            // Add thumbnails
+            const collectionsWithThumbnails = await Promise.all(
+                (paginatedData || []).map(async (collection) => {
+                    const thumbnail = await getCollectionThumbnail(collection);
+                    return { ...collection, thumbnail };
+                })
+            );
+
             // Update total count for filtered results
             const filteredTotalCount = filteredData.length;
             const totalPages = Math.ceil(filteredTotalCount / limitNum);
 
             return res.json({
-                collections: paginatedData,
+                collections: collectionsWithThumbnails,
                 totalCount: filteredTotalCount,
                 totalPages,
                 currentPage: pageNum,
@@ -349,12 +357,10 @@ export const getPaginatedCollections = async (req, res) => {
             // For name and date sorting, use database sorting with items count
             if (filter) {
                 // If filtering is needed, get all data first, then filter and paginate
-
-            const {data, error} = supabase
+                const {data: allData, error} = await supabase
                     .from('collections')
                     .select(selection)
                     .eq('private', false);
-
 
                 if (error) {
                     console.error('Error fetching all collections for filtering:', error);
@@ -404,11 +410,19 @@ export const getPaginatedCollections = async (req, res) => {
                 // Apply pagination
                 const paginatedData = sortedData.slice(offset, offset + limitNum);
 
+                // Add thumbnails
+                const collectionsWithThumbnails = await Promise.all(
+                    (paginatedData || []).map(async (collection) => {
+                        const thumbnail = await getCollectionThumbnail(collection);
+                        return { ...collection, thumbnail };
+                    })
+                );
+
                 const filteredTotalCount = filteredData.length;
                 const totalPages = Math.ceil(filteredTotalCount / limitNum);
 
                 res.json({
-                    collections: paginatedData,
+                    collections: collectionsWithThumbnails,
                     totalCount: filteredTotalCount,
                     totalPages,
                     currentPage: pageNum,
@@ -431,9 +445,17 @@ export const getPaginatedCollections = async (req, res) => {
                     return res.status(500).json({ error: error.message });
                 }
 
+                // Add thumbnails
+                const collectionsWithThumbnails = await Promise.all(
+                    (data || []).map(async (collection) => {
+                        const thumbnail = await getCollectionThumbnail(collection);
+                        return { ...collection, thumbnail };
+                    })
+                );
+
                 const totalPages = Math.ceil(totalCount / limitNum);
                 res.json({
-                    collections: data,
+                    collections: collectionsWithThumbnails,
                     totalCount,
                     totalPages,
                     currentPage: pageNum,
