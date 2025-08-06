@@ -614,8 +614,14 @@ export const getPublicUserCollection = async (req, res) => {
         }
 
         // Add thumbnail to single collection
-        const collectionWithThumbnail = await addThumbnailsToCollections([data]);
-        res.json(collectionWithThumbnail[0]);
+        const collectionWithThumbnail = await getCollectionThumbnailFast(data, data.items || []);
+        // add thumbnail_url to the collection object
+        if (collectionWithThumbnail) {
+            data.thumbnail_url = collectionWithThumbnail;
+        } else {
+            data.thumbnail_url = null; // No thumbnail found
+        }
+        res.status(200).json(data);
     } catch (err) {
         res.status(500).json({ error: 'Internal Server Error' });
     }
