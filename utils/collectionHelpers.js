@@ -5,182 +5,141 @@ function baseTransformCollection(collection, includeThumbnail) {
     return {
         ...collection,
         itemsLength: collection.items ? collection.items.length : 0,
-        thumbnail: includeThumbnail ? null : undefined, // Placeholder for thumbnail, will be populated async if needed
-        items: undefined // Remove items array to keep response lean
+        thumbnail: includeThumbnail ? null : undefined, // placeholder, will populate async if needed
+        items: undefined, // remove items array to keep response lean
     };
 }
 
-export const transformCollectionData = (data, includeThumbnail = false) => {
-    if (!data || !Array.isArray(data)) {
-        return [];
+// Batch fetch items for multiple collections
+async function fetchItemsForCollections(collections) {
+    // Defensive: skip if no collections or no ids
+    if (!collections || !Array.isArray(collections) || collections.length === 0) return {};
+    const ids = collections.map(c => c.id).filter(Boolean);
+    if (ids.length === 0) return {};
+    const { data, error } = await supabase
+        .from('collections')
+        .select('id, items')
+        .in('id', ids);
+
+    console.log(`Fetched items for ${ids.length} collections`);
+
+    if (error) {
+        console.error('Failed to batch fetch items:', error.message);
+        return {};
     }
+    if (!data) return {};
+    const map = {};
+    for (const row of data) {
+        map[row.id] = row.items || [];
+    }
+    return map;
+}
+
+// Sanitize function for paths
+const sanitizeName = (name) => name.replace(/[^a-zA-Z0-9-_]/g, '_');
+
+// Try multiple thumbnail paths in parallel and return first valid public URL
+async function tryThumbnailPaths(collection) {
+    // Defensive: support both .profiles.username and .author (legacy)
+    const username = collection?.profiles?.username || collection?.author;
+    if (!username || !collection.category) return null;
+
+    const sanitizedPath = sanitizeName(`${username}/${collection.category}`) + '/thumbnail.jpg';
+    const unsanitizedPath = `${username}/${collection.category}/thumbnail.jpg`;
+
+    const pathsToTry = [sanitizedPath, unsanitizedPath];
+    for (const path of pathsToTry) {
+        try {
+            const { data: thumbnailData } = supabase.storage.from('uploads').getPublicUrl(path);
+            if (thumbnailData?.publicUrl) {
+                // Optionally: could do a HEAD request here to verify existence
+                return thumbnailData.publicUrl;
+            }
+        } catch (e) {
+            // ignore errors
+        }
+    }
+    return null;
+}
+
+// Main: Get thumbnail URL for one collection
+export async function getCollectionThumbnailFast(collection, itemsForCollection = []) {
+    if (!collection) return null;
+
+    console.log("Items in collection:", itemsForCollection.length);
+
+    // 1) If thumbnail_url exists on collection, just use it (skip HEAD validation for speed)
+    if (collection.thumbnail_url && typeof collection.thumbnail_url === 'string') {
+        return collection.thumbnail_url;
+    }
+
+    // 2) Try storage paths sequentially (not parallel, for reliability)
+    const thumbnailFromStorage = await tryThumbnailPaths(collection);
+    if (thumbnailFromStorage) {
+        return thumbnailFromStorage;
+    }
+
+    // 3) Fallback: use first item image if exists
+    if (Array.isArray(itemsForCollection) && itemsForCollection.length > 0 && itemsForCollection[0].image) {
+        return itemsForCollection[0].image;
+    }
+
+    // No thumbnail found
+    return null;
+}
+
+// Transform collections with thumbnails using batch item fetch and parallel thumbnail fetching
+export async function transformCollectionsWithThumbnailsFast(collections) {
+    if (!collections || !Array.isArray(collections)) return [];
+
+    // Batch fetch items once
+    const itemsMap = await fetchItemsForCollections(collections);
+
+    // Process collections in parallel
+    const transformed = await Promise.all(
+        collections.map(async (collection) => {
+            const itemsForCollection = itemsMap[collection.id] || [];
+            console.log(`Processing collection ${collection.id} with ${itemsForCollection.length} items`);
+            const thumbnail = await getCollectionThumbnailFast(collection, itemsForCollection);
+            return {
+                ...baseTransformCollection(collection, false),
+                thumbnail,
+            };
+        })
+    );
+
+    return transformed;
+}
+
+// Simple transformCollectionData (no thumbnails)
+export const transformCollectionData = (data, includeThumbnail = false) => {
+    if (!data || !Array.isArray(data)) return [];
     return data.map(collection => baseTransformCollection(collection, includeThumbnail));
 };
 
-// Helper: Transform collection data with thumbnails (async version)
-export const transformCollectionDataWithThumbnails = async (data) => {
-    if (!data || !Array.isArray(data)) {
-        return [];
-    }
-    return Promise.all(data.map(async (collection) => {
-        const thumbnail = await getCollectionThumbnail(collection);
-        return {
-            ...baseTransformCollection(collection, false),
-            thumbnail,
-        };
-    }));
-};
-
-// Helper: Filter collections by search term in title (category) or tags
+// Filter collections by search term in title (category) or tags
 export const filterCollections = (collections, filter) => {
-    if (!collections || !Array.isArray(collections)) {
-        return [];
-    }
+    if (!collections || !Array.isArray(collections)) return [];
 
-    if (!filter || filter.trim() === '') {
-        return collections;
-    }
+    if (!filter || filter.trim() === '') return collections;
 
     const searchTerm = filter.toLowerCase().trim();
 
-    const filtered = collections.filter(collection => {
-        if (!collection) {
-            return false;
-        }
+    return collections.filter(collection => {
+        if (!collection) return false;
 
-        // Check if search term is CONTAINED in category (title)
         const titleMatch = collection.category &&
             typeof collection.category === 'string' &&
             collection.category.toLowerCase().includes(searchTerm);
 
-        // Check if search term is CONTAINED in any of the tags
         const tagsMatch = collection.tags &&
             Array.isArray(collection.tags) &&
             collection.tags.some(tag =>
                 tag && typeof tag === 'string' && tag.toLowerCase().includes(searchTerm)
             );
 
-        const matches = titleMatch || tagsMatch;
-
-        return matches;
+        return titleMatch || tagsMatch;
     });
-
-    return filtered;
-};
-
-// Helper: Get collection thumbnail with fallback logic
-export const getCollectionThumbnail = async (collection) => {
-    if (!collection || !collection.profiles.username || !collection.category) {
-        return null;
-    }
-
-    // sterilize author and category names to ensure they are safe for use in paths
-    const sanitizeName = (name) => {
-        return name.replace(/[^a-zA-Z0-9-_]/g, '_');
-    };
-
-    // Try sanitized path first
-    const sanitizedPath = sanitizeName(`${collection.profiles.username}/${collection.category}`) + "/thumbnail.jpg";
-    const unsanitizedPath = `${collection.profiles.username}/${collection.category}/thumbnail.jpg`;
-
-    const s3Path = process.env.AWS_S3_PUBLIC_URL || process.env.S3_PUBLIC_URL || process.env.S3_ENDPOINT;
-
-    if (!s3Path) {
-        console.error("S3 public URL is not configured.");
-        return null;
-    }
-
-    // First, try to get thumbnail_url directly from the collection (from Supabase 'collections' table)
-    if (collection.thumbnail_url && typeof collection.thumbnail_url === 'string') {
-        // Validate if the thumbnail actually exists by making a HEAD request
-        try {
-            const response = await fetch(collection.thumbnail_url, { method: 'HEAD' });
-            if (response.ok) {
-                return collection.thumbnail_url;
-            }
-        } catch (fetchError) {
-            console.log(`Thumbnail validation failed for collection.thumbnail_url:`, fetchError.message);
-        }
-    }
-
-    for (const thumbnailPath of [sanitizedPath, unsanitizedPath]) {
-        try {
-            // Get the public URL for the thumbnail
-            const { data: thumbnailData } = supabase.storage
-                .from('uploads')
-                .getPublicUrl(thumbnailPath);
-
-            if (thumbnailData?.publicUrl) {
-                // Validate if the thumbnail actually exists by making a HEAD request
-                try {
-                    const response = await fetch(thumbnailData.publicUrl, { method: 'HEAD' });
-                    if (response.ok) {
-                        // apply thumbnailData.publicUrl to collection.thumbnail_url
-                        // use supabase to upload the thumbnail if it doesn't exist
-                        if (!collection.thumbnail_url) {
-                            console.log(`Updating collection ${collection.id} with thumbnail_url: ${thumbnailData.publicUrl}`);
-                            const { error } = await supabase
-                                .from('collections')
-                                .update({ thumbnail_url: thumbnailData.publicUrl })
-                                .eq('id', collection.id);
-
-                            if (error) {
-                                console.error(`Failed to update collection thumbnail_url for ${collection.id}:`, error.message);
-                            }
-                        }
-                        return thumbnailData.publicUrl;
-                    }
-                } catch (fetchError) {
-                    console.log(`Thumbnail validation failed for ${thumbnailPath}:`, fetchError.message);
-                }
-            }
-        } catch (storageError) {
-            console.log(`Storage error for thumbnail ${thumbnailPath}:`, storageError.message);
-        }
-    }
-
-    console.log(`No thumbnail found in storage for collection ${collection.id}. Trying first item image as fallback.`);
-
-    // get items
-    const { data, error } = await supabase
-        .from('collections')
-        .select('id, items')
-        .eq('id', collection.id);
-
-    if (error) {
-        console.error(`Error fetching items for collection ${collection.id}:`, error.message);
-        return null;
-    }
-
-    const items = data?.[0]?.items || [];
-
-    console.log(`Found ${items.length} items in collection ${collection.id}.`);
-    if (items.length === 0) {
-        console.log(`No items found in collection ${collection.id}. Returning null.`);
-        return null;
-    }
-
-    // Fallback: try to get the first item's image
-    if (items && Array.isArray(items) && items.length > 0) {
-        const firstItem = items[0];
-        if (firstItem && firstItem.image) {
-            // upload the firstItem.image as thumbnail_url to supabase table
-            if (!collection.thumbnail_url) {
-                console.log(`Updating collection ${collection.id} with first item image as thumbnail_url: ${firstItem.image}`);
-                const { error } = await supabase
-                    .from('collections')
-                    .update({ thumbnail_url: firstItem.image })
-                    .eq('id', collection.id);
-
-                if (error) {
-                    console.error(`Failed to update collection thumbnail_url for ${collection.id}:`, error.message);
-                }
-            }
-            return firstItem.image;
-        }
-    }
-
-    return null;
 };
 
 // Helper: Add thumbnails to existing collection data
@@ -188,11 +147,11 @@ export const addThumbnailsToCollections = async (collections) => {
     if (!collections || !Array.isArray(collections)) {
         return collections;
     }
-    return Promise.all(collections.map(async (collection) => {
-        const thumbnail = await getCollectionThumbnail(collection);
-        return {
-            ...collection,
-            thumbnail
-        };
+    // Defensive: skip if empty
+    if (collections.length === 0) return collections;
+    const transformed = await transformCollectionsWithThumbnailsFast(collections);
+    return transformed.map(collection => ({
+        ...collection,
+        thumbnail: collection.thumbnail || null, // Ensure thumbnail is always present
     }));
 };
