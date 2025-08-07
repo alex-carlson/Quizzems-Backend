@@ -36,30 +36,83 @@ async function fetchItemsForCollections(collections) {
 }
 
 // Sanitize function for paths
+// This regex replaces any character that is NOT a-z, A-Z, 0-9, dash, or underscore with an underscore.
+// It is used to sanitize names for safe use in URLs or file paths.
 const sanitizeName = (name) => name.replace(/[^a-zA-Z0-9-_]/g, '_');
 
-// Try multiple thumbnail paths in parallel and return first valid public URL
+// Try multiple thumbnail paths: first Supabase uploads, then fallback to Cloudflare path
 async function tryThumbnailPaths(collection) {
     // Defensive: support both .profiles.username and .author (legacy)
     const username = collection?.profiles?.username || collection?.author;
     if (!username || !collection.category) return null;
 
+    const sanitizedCategory = sanitizeName(collection.category);
+    const categoryNoSpaces = collection.category.replace(/\s+/g, '');
     const sanitizedPath = sanitizeName(`${username}/${collection.category}`) + '/thumbnail.jpg';
     const unsanitizedPath = `${username}/${collection.category}/thumbnail.jpg`;
+    const cloudflarePath = `https://media.quizzems.com/thumbnails/${collection.category}/thumbnail.jpg`;
+    const cloudflarePathNoSpaces = `https://media.quizzems.com/thumbnails/${categoryNoSpaces}/thumbnail.jpg`;
+    const cloudflarePathSanitized = `https://media.quizzems.com/thumbnails/${sanitizedCategory}/thumbnail.jpg`;
 
+    // Try Supabase uploads first
     const pathsToTry = [sanitizedPath, unsanitizedPath];
     for (const path of pathsToTry) {
         try {
+            console.log(`Checking thumbnail path: ${path}`);
             const { data: thumbnailData } = supabase.storage.from('uploads').getPublicUrl(path);
             if (thumbnailData?.publicUrl) {
-                // Optionally: could do a HEAD request here to verify existence
-                return thumbnailData.publicUrl;
+                // Do a HEAD request to verify existence
+                const res = await fetch(thumbnailData.publicUrl, { method: 'HEAD' });
+                if (res.ok) {
+                    return thumbnailData.publicUrl;
+                }
             }
         } catch (e) {
             // ignore errors
         }
     }
+
+    // Fallback: try all Cloudflare paths
+    const cloudflarePaths = [cloudflarePath, cloudflarePathNoSpaces, cloudflarePathSanitized];
+    for (const path of cloudflarePaths) {
+        try {
+            const res = await fetch(path, { method: 'HEAD' });
+            if (res.ok) {
+                return path;
+            }
+        } catch (e) {
+            // ignore errors
+        }
+    }
+
     return null;
+}
+
+// add thumbnail url to thumbnail_url in collection
+async function addThumbnailToCollection(id, thumbnailUrl) {
+    if (!id || !thumbnailUrl) return null;
+
+    // Defensive: ensure collection has id
+    if (!id) {
+        console.error('Collection has no ID, cannot add thumbnail');
+        return null;
+    }
+
+    console.log(`Adding thumbnail to collection ${id}: ${thumbnailUrl}`);
+
+    // Update collection with new thumbnail URL
+    const { data, error } = await supabase
+        .from('collections')
+        .update({ thumbnail_url: thumbnailUrl })
+        .eq('id', id)
+        .select('id, thumbnail_url');
+
+    if (error) {
+        console.error('Failed to update collection thumbnail:', error.message);
+        return null;
+    }
+
+    return data ? data[0] : null;
 }
 
 // Main: Get thumbnail URL for one collection
@@ -76,11 +129,13 @@ export async function getCollectionThumbnailFast(collection, itemsForCollection 
     // 2) Try storage paths sequentially (not parallel, for reliability)
     const thumbnailFromStorage = await tryThumbnailPaths(collection);
     if (thumbnailFromStorage) {
+        addThumbnailToCollection(collection.id, thumbnailFromStorage); // async, don't await
         return thumbnailFromStorage;
     }
 
     // 3) Fallback: use first item image if exists
     if (Array.isArray(itemsForCollection) && itemsForCollection.length > 0 && itemsForCollection[0].image) {
+        addThumbnailToCollection(collection.id, itemsForCollection[0].image); // async, don't await
         return itemsForCollection[0].image;
     }
 
