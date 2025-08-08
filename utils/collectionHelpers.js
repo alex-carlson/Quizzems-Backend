@@ -98,8 +98,6 @@ async function addThumbnailToCollection(id, thumbnailUrl) {
         return null;
     }
 
-    console.log(`Adding thumbnail to collection ${id}: ${thumbnailUrl}`);
-
     // Update collection with new thumbnail URL
     const { data, error } = await supabase
         .from('collections')
