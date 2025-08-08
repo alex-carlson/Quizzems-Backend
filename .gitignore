@@ -6,3 +6,4 @@ compressed
 package-lock.json
 login.pem
 .env.migrate
+downloaded_files

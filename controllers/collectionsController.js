@@ -636,7 +636,7 @@ export const getUserCollections = async (req, res) => {
             return res.status(401).json({ error: 'No token provided' });
         }
 
-        const selection = 'category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items_length, tags, id, thumbnail_url';
+        const selection = 'category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items_length, private, tags, id, thumbnail_url';
 
         // Use .eq('author_uuid', uid) to filter by user, then join profiles
         const { data, error } = await getSupabaseClientWithToken(token)
