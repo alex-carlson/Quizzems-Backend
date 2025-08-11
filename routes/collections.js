@@ -19,7 +19,8 @@ import {
   getPopularTags,
   getRecommendedTags,
   getCollectionsByTag,
-  getDailyCollection
+  getDailyCollection,
+  incrementTimesPlayed
 } from '../controllers/collectionsController.js';
 import verifySupabaseToken from '../middleware/supabaseAuth.js';
 
@@ -73,6 +74,9 @@ router.post('/update/:collectionId', verifySupabaseToken, updateCollection);
 router.post('/createCollection', verifySupabaseToken, createNewCollection);
 router.post('/renameCollection', verifySupabaseToken, renameCollection);
 router.post('/setVisible', verifySupabaseToken, setVisible);
+router.post('/incrementPlays/:collectionId', (req, res, next) => {
+  incrementTimesPlayed(req, res, next);
+});
 
 // DELETE collection (protected)
 router.delete('/:uid/:collectionId', verifySupabaseToken, deleteCollection);

@@ -589,6 +589,49 @@ export const getUserCollection = async (req, res) => {
     }
 };
 
+export const incrementTimesPlayed = async (req, res) => {
+    try {
+        const { collectionId } = req.params;
+        console.log("Incrementing collection id:", collectionId);
+
+        // First get current value, then increment atomically
+        const { data, error } = await supabase
+            .from('collections')
+            .select('times_played')
+            .eq('id', collectionId)
+            .single();
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+
+        console.log("times played:", data.times_played)
+
+        const newTimesPlayed = (data.times_played || 0) + 1;
+
+        console.log("Updating times_played for collection:", {
+            id: collectionId,
+            newTimesPlayed
+        });
+
+        const { data: updatedData, error: updateError } = await supabase
+            .from('collections')
+            .update({ times_played: newTimesPlayed })
+            .eq('id', collectionId)
+            .select('id, times_played')
+            .single();
+
+        if (updateError) {
+            return res.status(500).json({ error: updateError.message });
+        }
+
+        res.status(200).json({ id: updatedData.id, times_played: updatedData.times_played });
+    } catch (err) {
+        console.error('Error in incrementTimesPlayed:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
 export const getPublicUserCollection = async (req, res) => {
     try {
         const { collectionId } = req.params;
@@ -601,16 +644,6 @@ export const getPublicUserCollection = async (req, res) => {
 
         if (error) {
             return res.status(500).json({ error: error.message });
-        }
-
-        // increment data.times_played by 1 and update the table
-        const { error: updateError } = await supabase
-            .from('collections')
-            .update({ times_played: (data.times_played || 0) + 1 })
-            .eq('id', data.id);
-        if (updateError) {
-            console.error('Error updating times_played:', updateError);
-            return res.status(500).json({ error: updateError.message });
         }
 
         // Add thumbnail to single collection

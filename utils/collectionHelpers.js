@@ -21,8 +21,6 @@ async function fetchItemsForCollections(collections) {
         .select('id, items')
         .in('id', ids);
 
-    console.log(`Fetched items for ${ids.length} collections`);
-
     if (error) {
         console.error('Failed to batch fetch items:', error.message);
         return {};
@@ -117,8 +115,6 @@ async function addThumbnailToCollection(id, thumbnailUrl) {
 export async function getCollectionThumbnailFast(collection, itemsForCollection = []) {
     if (!collection) return null;
 
-    console.log("Items in collection:", itemsForCollection.length);
-
     // 1) If thumbnail_url exists on collection, just use it (skip HEAD validation for speed)
     if (collection.thumbnail_url && typeof collection.thumbnail_url === 'string') {
         return collection.thumbnail_url;
@@ -152,7 +148,6 @@ export async function transformCollectionsWithThumbnailsFast(collections) {
     const transformed = await Promise.all(
         collections.map(async (collection) => {
             const itemsForCollection = itemsMap[collection.id] || [];
-            console.log(`Processing collection ${collection.id} with ${itemsForCollection.length} items`);
             const thumbnail = await getCollectionThumbnailFast(collection, itemsForCollection);
             return {
                 ...baseTransformCollection(collection, false),
