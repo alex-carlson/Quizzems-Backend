@@ -592,7 +592,6 @@ export const getUserCollection = async (req, res) => {
 export const incrementTimesPlayed = async (req, res) => {
     try {
         const { collectionId } = req.params;
-        console.log("Incrementing collection id:", collectionId);
 
         // First get current value, then increment atomically
         const { data, error } = await supabase
@@ -605,14 +604,7 @@ export const incrementTimesPlayed = async (req, res) => {
             return res.status(500).json({ error: error.message });
         }
 
-        console.log("times played:", data.times_played)
-
         const newTimesPlayed = (data.times_played || 0) + 1;
-
-        console.log("Updating times_played for collection:", {
-            id: collectionId,
-            newTimesPlayed
-        });
 
         const { data: updatedData, error: updateError } = await supabase
             .from('collections')
@@ -861,7 +853,7 @@ export const updateCollection = async (req, res) => {
             return res.status(401).json({ error: 'No token provided' });
         }
 
-        const { private: isPrivate, tags, category, description } = data;
+        const { private: isPrivate, tags, category, description, shuffle } = data;
         const slug = slugify(category, { lower: true, strict: true, trim: true });
         const last_modified = new Date().toISOString();
 
@@ -873,7 +865,8 @@ export const updateCollection = async (req, res) => {
                 last_modified,
                 category,
                 description,
-                slug
+                slug,
+                shuffle
             })
             .eq('id', collectionId)
             .select('*, profiles(username, public_id, username_slug)');
