@@ -157,7 +157,7 @@ export const AddAudioToCollection = async (req, res) => {
 
 export const AddQuestionToCollection = async (req, res) => {
     try {
-        const { category, author, uuid, question, answer, author_id } = req.body;
+        const { category, author, uuid, question, answer, author_id, numRequired, type } = req.body;
         if (!category || !author || !question || !answer) {
             return res.status(400).json({ error: "Missing required fields" });
         }
@@ -168,7 +168,9 @@ export const AddQuestionToCollection = async (req, res) => {
         const myItem = {
             id: uuid || null,
             question: question || null,
-            answer: answer || null
+            answer: answer || null,
+            numRequired: numRequired || 1,
+            type: type || null
         };
         const { data: collection, error: fetchError } = await fetchCollection(token, category, author_id);
         if (fetchError) {
