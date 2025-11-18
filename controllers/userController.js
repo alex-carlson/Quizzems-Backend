@@ -241,13 +241,10 @@ export const completeQuiz = async (req, res) => {
         }
 
         // Ensure quizzes_completed is an array
-        const currentQuizzes = Array.isArray(profile.quizzes_completed)
-            ? profile.quizzes_completed
-            : profile.quizzes_completed === null
-                ? []
-                : [];
+        const currentQuizzes = Array.isArray(profile.quizzes_completed) 
+            ? profile.quizzes_completed 
+            : [];
 
-        // Find if quiz already exists
         const existingIndex = currentQuizzes.findIndex(q => q.quiz_id === quiz_id);
 
         let updatedQuizzes;

@@ -268,8 +268,6 @@ export const getPaginatedCollections = async (req, res) => {
             .select('*', { count: 'exact', head: true })
             .eq('private', false);
 
-        console.log('Total count:', totalCount);
-
         if (countError) {
             return res.status(500).json({ error: countError.message });
         }        // Special handling for size sorting (items array length)
