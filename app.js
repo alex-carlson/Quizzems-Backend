@@ -2,15 +2,31 @@ import express from 'express';
 import cors from 'cors';
 import routes from './routes/index.js';
 
-const app = express();
+// GraphQL code
+import { ApolloServer } from 'apollo-server-express';
+import typeDefs from './typeDefs.js';
 
-// Enable CORS for all origins
-app.use(cors());
+const resolvers = {
+    Query: {
+        hello: () => 'Hello World!',
+    },
+}
 
-// Middleware for JSON parsing
-app.use(express.json());
+const server = new ApolloServer({ typeDefs, resolvers });
 
-// API Routes
-app.use('/', routes);
+async function createApp() {
+    await server.start();
 
-export default app;
+    const app = express();
+    server.applyMiddleware({ app });
+
+    app.use(cors());
+
+    app.use(express.json());
+
+    app.use('/', routes);
+
+    return app;
+}
+
+export default createApp;

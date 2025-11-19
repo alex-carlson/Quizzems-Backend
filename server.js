@@ -2,31 +2,40 @@
 import http from 'http';
 import { Server as SocketIO } from 'socket.io';
 import cors from 'cors';
-import app from './app.js';
+import createApp from './app.js';
 import { setupSocketIO } from './socket.js'; // ✅ Import your socket logic
 
 const PORT = process.env.PORT || 3000;
 const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
 
-app.use(
-  cors({
-    origin: allowedOrigin,
-    credentials: true,
-  })
-);
+async function startServer() {
+  const app = await createApp();
 
-const server = http.createServer(app);
+  app.use(
+    cors({
+      origin: allowedOrigin,
+      credentials: true,
+    })
+  );
 
-const io = new SocketIO(server, {
-  cors: {
-    origin: allowedOrigin,
-    methods: ['GET', 'POST'],
-    credentials: true,
-  },
-});
+  const server = http.createServer(app);
 
-setupSocketIO(io); // ✅ Initialize socket handlers
+  const io = new SocketIO(server, {
+    cors: {
+      origin: allowedOrigin,
+      methods: ['GET', 'POST'],
+      credentials: true,
+    },
+  });
 
-server.listen(PORT, () => {
-  console.log(`Server is running with Socket.IO on port ${PORT}`);
+  setupSocketIO(io); // ✅ Initialize socket handlers
+
+  server.listen(PORT, () => {
+    console.log(`Server is running with Socket.IO on port ${PORT}`);
+  });
+}
+
+startServer().catch(err => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
 });
