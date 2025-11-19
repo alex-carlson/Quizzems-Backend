@@ -40,7 +40,7 @@ export const getUserProfile = async (req, res) => {
         // Try matching by `id` (uuid)
         let { data, error } = await supabase
             .from('profiles')
-            .select('*')
+            .select('username, bio, email, quizzes_completed, public_id, username_slug')
             .eq('id', uid)
             .single();
 
@@ -50,7 +50,7 @@ export const getUserProfile = async (req, res) => {
             const publicId = parseInt(uid, 10);
             ({ data, error } = await supabase
                 .from('profiles')
-                .select('*')
+                .select('username, bio, email, quizzes_completed, public_id, username_slug')
                 .eq('public_id', publicId)
                 .single());
         }
@@ -241,8 +241,8 @@ export const completeQuiz = async (req, res) => {
         }
 
         // Ensure quizzes_completed is an array
-        const currentQuizzes = Array.isArray(profile.quizzes_completed) 
-            ? profile.quizzes_completed 
+        const currentQuizzes = Array.isArray(profile.quizzes_completed)
+            ? profile.quizzes_completed
             : [];
 
         const existingIndex = currentQuizzes.findIndex(q => q.quiz_id === quiz_id);
