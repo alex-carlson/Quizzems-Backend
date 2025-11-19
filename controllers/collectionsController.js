@@ -256,7 +256,8 @@ export const getPaginatedCollections = async (req, res) => {
         const sortColumnMap = {
             "name": "category",
             "date": "created_at",
-            "size": "items"
+            "size": "items_length",
+            "plays": "times_played"
         };
 
         const sortColumn = sortColumnMap[sortMode] || "created_at";
@@ -270,33 +271,62 @@ export const getPaginatedCollections = async (req, res) => {
 
         if (countError) {
             return res.status(500).json({ error: countError.message });
-        }        // Special handling for size sorting (items array length)
-        const selection = 'id, category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items_length, tags, thumbnail_url';
-        if (sortMode === "size") {
-            // For size sorting, we need to get all data and sort in JavaScript
-            // since we can't sort by array length directly in Supabase
-            const { data, error: allError } = await supabase
+        }
+
+        const selection = 'id, category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items_length, tags, thumbnail_url, times_played';
+
+        if (filter) {
+            // If filtering is needed, get all data first, then filter and paginate
+            const { data: allData, error } = await supabase
                 .from('collections')
                 .select(selection)
                 .eq('private', false);
 
-            if (allError) {
-                return res.status(500).json({ error: allError.message });
+            if (error) {
+                console.error('Error fetching all collections for filtering:', error);
+                return res.status(500).json({ error: error.message });
             }
 
-            console.log('Fetched all collections for size sorting:', data.length);
+            console.log('Fetched all collections for filtering:', allData.length);
 
-            // Apply filter if provided
-            let filteredData = data;
-            if (filter) {
-                filteredData = filterCollections(data, filter);
+            if (!allData) {
+                return res.json({
+                    collections: [],
+                    totalCount: 0,
+                    totalPages: 0,
+                    currentPage: pageNum,
+                    limit: limitNum,
+                    sortMode,
+                    sortOrder,
+                    filter: filter || null
+                });
             }
 
-            // Sort by items count (already calculated by helper)
+            // Apply filter
+            const filteredData = filterCollections(allData, filter);
+
+            if (!filteredData) {
+                console.error('filterCollections returned null/undefined');
+                return res.status(500).json({ error: 'Filter operation failed' });
+            }
+
+            // Sort the filtered data
             const sortedData = filteredData.sort((a, b) => {
-                const aSize = a.itemsLength || 0;
-                const bSize = b.itemsLength || 0;
-                return ascending ? aSize - bSize : bSize - aSize;
+                const aValue = a[sortColumn] || '';
+                const bValue = b[sortColumn] || '';
+
+                if (typeof aValue === 'string' && typeof bValue === 'string') {
+                    return ascending ?
+                        aValue.localeCompare(bValue) :
+                        bValue.localeCompare(aValue);
+                }
+
+                // For dates and other comparable types
+                if (ascending) {
+                    return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+                } else {
+                    return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+                }
             });
 
             // Apply pagination
@@ -304,10 +334,9 @@ export const getPaginatedCollections = async (req, res) => {
 
             // Add thumbnails and persist thumbnail_url if needed
             const collectionsWithThumbnails = await addThumbnailsToCollections(paginatedData || []);
-            // Update total count for filtered results
             const filteredTotalCount = filteredData.length;
             const totalPages = Math.ceil(filteredTotalCount / limitNum);
-            return res.json({
+            res.json({
                 collections: collectionsWithThumbnails,
                 totalCount: filteredTotalCount,
                 totalPages,
@@ -318,105 +347,31 @@ export const getPaginatedCollections = async (req, res) => {
                 filter: filter || null
             });
         } else {
-            // For name and date sorting, use database sorting with items count
-            if (filter) {
-                // If filtering is needed, get all data first, then filter and paginate
-                const { data: allData, error } = await supabase
-                    .from('collections')
-                    .select(selection)
-                    .eq('private', false);
+            // No filtering needed, use efficient database sorting
+            let { data, error } = await supabase
+                .from('collections')
+                .select(selection)
+                .eq('private', false)
+                .order(sortColumn, { ascending })
+                .range(offset, offset + limitNum - 1);
 
-                if (error) {
-                    console.error('Error fetching all collections for filtering:', error);
-                    return res.status(500).json({ error: error.message });
-                }
-
-                console.log('Fetched all collections for filtering:', allData.length);
-
-                if (!allData) {
-                    return res.json({
-                        collections: [],
-                        totalCount: 0,
-                        totalPages: 0,
-                        currentPage: pageNum,
-                        limit: limitNum,
-                        sortMode,
-                        sortOrder,
-                        filter: filter || null
-                    });
-                }
-
-                // Apply filter
-                const filteredData = filterCollections(allData, filter);
-
-                if (!filteredData) {
-                    console.error('filterCollections returned null/undefined');
-                    return res.status(500).json({ error: 'Filter operation failed' });
-                }
-
-                // Sort the filtered data
-                const sortedData = filteredData.sort((a, b) => {
-                    const aValue = a[sortColumn] || '';
-                    const bValue = b[sortColumn] || '';
-
-                    if (typeof aValue === 'string' && typeof bValue === 'string') {
-                        return ascending ?
-                            aValue.localeCompare(bValue) :
-                            bValue.localeCompare(aValue);
-                    }
-
-                    // For dates and other comparable types
-                    if (ascending) {
-                        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
-                    } else {
-                        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
-                    }
-                });
-
-                // Apply pagination
-                const paginatedData = sortedData.slice(offset, offset + limitNum);
-
-                // Add thumbnails and persist thumbnail_url if needed
-                const collectionsWithThumbnails = await addThumbnailsToCollections(paginatedData || []);
-                const filteredTotalCount = filteredData.length;
-                const totalPages = Math.ceil(filteredTotalCount / limitNum);
-                res.json({
-                    collections: collectionsWithThumbnails,
-                    totalCount: filteredTotalCount,
-                    totalPages,
-                    currentPage: pageNum,
-                    limit: limitNum,
-                    sortMode,
-                    sortOrder,
-                    filter: filter || null
-                });
-            } else {
-                // No filtering needed, use efficient database sorting
-                let { data, error } = await supabase
-                    .from('collections')
-                    .select(selection)
-                    .eq('private', false)
-                    .order(sortColumn, { ascending })
-                    .range(offset, offset + limitNum - 1);
-
-                if (error) {
-                    console.error('Database query error:', error);
-                    return res.status(500).json({ error: error.message });
-                }
-
-                const totalPages = Math.ceil(totalCount / limitNum);
-                const collectionsWithThumbnails = await addThumbnailsToCollections(data || []);
-                res.json({
-                    collections: collectionsWithThumbnails,
-                    totalCount,
-                    totalPages,
-                    currentPage: pageNum,
-                    limit: limitNum,
-                    sortMode,
-                    sortOrder,
-                    filter: null
-                });
+            if (error) {
+                console.error('Database query error:', error);
+                return res.status(500).json({ error: error.message });
             }
+
+            const totalPages = Math.ceil(totalCount / limitNum);
+            const collectionsWithThumbnails = await addThumbnailsToCollections(data || []);
+            res.json({
+                collections: collectionsWithThumbnails,
+                totalCount,
+                totalPages,
+                currentPage: pageNum,
+                limit: limitNum,
+                sortMode,
+                sortOrder,
+                filter: null
+            });
         }
     } catch (err) {
         console.error('Error in getPaginatedCollections:', err);
