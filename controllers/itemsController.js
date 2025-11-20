@@ -28,7 +28,7 @@ const updateCollectionItems = async (token, category, updatedItems, author_id = 
 };
 
 // Generic helper: Add item to collection with common fields
-const addItemToCollectionHelper = async (token, category, author_id, itemData, shouldUpdate = false) => {
+const addItemToCollectionHelper = async (req, token, category, author_id, itemData, shouldUpdate = false) => {
     const { data: collection, error: fetchError } = await fetchCollection(token, category, author_id);
     if (fetchError) {
         throw new Error(`Failed to fetch collection: ${fetchError.message}`);
@@ -65,9 +65,10 @@ const addItemToCollectionHelper = async (token, category, author_id, itemData, s
         ...parsedItemData // Spread additional fields
     };
 
-    // Add uploaded image URL as src if it exists
+    // Add uploaded image URL as src and image if it exists
     if (req.uploadedImageUrl) {
         myItem.src = req.uploadedImageUrl;
+        myItem.image = req.uploadedImageUrl;
     }
 
     let updatedItems;
@@ -148,7 +149,7 @@ export const AddItemToCollection = async (req, res) => {
             return res.status(401).json({ error: "No token provided" });
         }
 
-        const data = await addItemToCollectionHelper(token, category, author_id, req.body, true);
+        const data = await addItemToCollectionHelper(req, token, category, author_id, req.body, true);
         res.status(201).json(data);
     } catch (err) {
         console.error("Unexpected error:", err);
@@ -167,7 +168,7 @@ export const AddAudioToCollection = async (req, res) => {
             return res.status(401).json({ error: "No token provided" });
         }
 
-        const data = await addItemToCollectionHelper(token, category, author_id, req.body);
+        const data = await addItemToCollectionHelper(req, token, category, author_id, req.body);
         res.status(201).json(data);
     } catch (err) {
         console.error("Unexpected error:", err);
@@ -186,7 +187,7 @@ export const AddQuestionToCollection = async (req, res) => {
             return res.status(401).json({ error: "No token provided" });
         }
 
-        const data = await addItemToCollectionHelper(token, category, author_id, req.body);
+        const data = await addItemToCollectionHelper(req, token, category, author_id, req.body);
         res.status(201).json(data);
     } catch (err) {
         console.error("Unexpected error:", err);
