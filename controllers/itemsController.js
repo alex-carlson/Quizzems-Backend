@@ -27,6 +27,77 @@ const updateCollectionItems = async (token, category, updatedItems, author_id = 
     return await query.select();
 };
 
+// Generic helper: Add item to collection with common fields
+const addItemToCollectionHelper = async (token, category, author_id, itemData, shouldUpdate = false) => {
+    const { data: collection, error: fetchError } = await fetchCollection(token, category, author_id);
+    if (fetchError) {
+        throw new Error(`Failed to fetch collection: ${fetchError.message}`);
+    }
+
+    console.log("Body:", itemData);
+
+    // Parse JSON strings for array fields
+    const parsedItemData = { ...itemData };
+    if (typeof parsedItemData.answers === 'string') {
+        try {
+            parsedItemData.answers = JSON.parse(parsedItemData.answers);
+        } catch (e) {
+            console.warn('Failed to parse answers as JSON:', parsedItemData.answers);
+        }
+    }
+    if (typeof parsedItemData.answer === 'string') {
+        try {
+            // Check if answer looks like a JSON array
+            if (parsedItemData.answer.startsWith('[') && parsedItemData.answer.endsWith(']')) {
+                parsedItemData.answer = JSON.parse(parsedItemData.answer);
+            }
+        } catch (e) {
+            console.warn('Failed to parse answer as JSON:', parsedItemData.answer);
+        }
+    }
+
+    // Create item with common fields
+    const myItem = {
+        id: parsedItemData.id || crypto.randomUUID(),
+        numRequired: parsedItemData.numRequired || 1,
+        correctAnswerIndex: parsedItemData.correctAnswerIndex || 0,
+        type: parsedItemData.type || 'default',
+        ...parsedItemData // Spread additional fields
+    };
+
+    // Add uploaded image URL as src if it exists
+    if (req.uploadedImageUrl) {
+        myItem.src = req.uploadedImageUrl;
+    }
+
+    let updatedItems;
+    if (collection.items && Array.isArray(collection.items)) {
+        if (shouldUpdate) {
+            const existingIndex = collection.items.findIndex(item => item.id === myItem.id);
+            if (existingIndex !== -1) {
+                // Update existing item
+                updatedItems = collection.items.map(item =>
+                    item.id === myItem.id ? { ...item, ...myItem } : item
+                );
+            } else {
+                // Append new item
+                updatedItems = [...collection.items, myItem];
+            }
+        } else {
+            // Always append new item
+            updatedItems = [...collection.items, myItem];
+        }
+    } else {
+        updatedItems = [myItem];
+    }
+
+    const { data, error } = await updateCollectionItems(token, category, updatedItems, author_id);
+    if (error) {
+        throw new Error(`Failed to update collection: ${error.message}`);
+    }
+    return data;
+};
+
 // add thumbnail to collection
 export const AddThumbnailToCollection = async (req, res) => {
     try {
@@ -68,7 +139,7 @@ export const AddThumbnailToCollection = async (req, res) => {
 
 export const AddItemToCollection = async (req, res) => {
     try {
-        const { category, author, uuid, answer, author_id, author_uuid, extra } = req.body;
+        const { category, author, author_id } = req.body;
         if (!category || !author || !req.uploadedImageUrl) {
             return res.status(400).json({ error: "Missing required fields" });
         }
@@ -76,37 +147,8 @@ export const AddItemToCollection = async (req, res) => {
         if (!token) {
             return res.status(401).json({ error: "No token provided" });
         }
-        const myItem = {
-            id: uuid || null,
-            image: req.uploadedImageUrl || null,
-            answer: answer || null,
-            extra: extra || null
-        };
-        const { data: collection, error: fetchError } = await fetchCollection(token, category, author_id);
-        if (fetchError) {
-            console.error("Error fetching collection:", fetchError);
-            return res.status(500).json({ error: "Failed to fetch collection", details: fetchError });
-        }
-        let updatedItems;
-        if (collection.items && Array.isArray(collection.items)) {
-            const existingIndex = collection.items.findIndex(item => item.id === myItem.id);
-            if (existingIndex !== -1) {
-                // Update existing item
-                updatedItems = collection.items.map(item =>
-                    item.id === myItem.id ? { ...item, ...myItem } : item
-                );
-            } else {
-                // Append new item
-                updatedItems = [...collection.items, myItem];
-            }
-        } else {
-            updatedItems = [myItem];
-        }
-        const { data, error } = await updateCollectionItems(token, category, updatedItems, author_id);
-        if (error) {
-            console.error("Error updating collection:", error);
-            return res.status(500).json({ error: "Failed to update collection", details: error });
-        }
+
+        const data = await addItemToCollectionHelper(token, category, author_id, req.body, true);
         res.status(201).json(data);
     } catch (err) {
         console.error("Unexpected error:", err);
@@ -125,29 +167,7 @@ export const AddAudioToCollection = async (req, res) => {
             return res.status(401).json({ error: "No token provided" });
         }
 
-        const finalBody = {
-            // get id, audio, title, answer, and thumbnail from req.body
-            id: req.body.id || null,
-            audio: url || null,
-            title: req.body.title || null,
-            answer: req.body.answer || null,
-            thumbnail: req.body.thumbnail || null
-        }
-
-        const myItem = {
-            ...finalBody
-        };
-        const { data: collection, error: fetchError } = await fetchCollection(token, category, author_id);
-        if (fetchError) {
-            console.error("Error fetching collection:", fetchError);
-            return res.status(500).json({ error: "Failed to fetch collection", details: fetchError });
-        }
-        const updatedItems = collection.items ? [...collection.items, myItem] : [myItem];
-        const { data, error } = await updateCollectionItems(token, category, updatedItems, author_id);
-        if (error) {
-            console.error("Error updating collection:", error);
-            return res.status(500).json({ error: "Failed to update collection", details: error });
-        }
+        const data = await addItemToCollectionHelper(token, category, author_id, req.body);
         res.status(201).json(data);
     } catch (err) {
         console.error("Unexpected error:", err);
@@ -157,7 +177,7 @@ export const AddAudioToCollection = async (req, res) => {
 
 export const AddQuestionToCollection = async (req, res) => {
     try {
-        const { category, author, uuid, question, answer, author_id, numRequired, type } = req.body;
+        const { category, author, question, answer, author_id } = req.body;
         if (!category || !author || !question || !answer) {
             return res.status(400).json({ error: "Missing required fields" });
         }
@@ -165,24 +185,8 @@ export const AddQuestionToCollection = async (req, res) => {
         if (!token) {
             return res.status(401).json({ error: "No token provided" });
         }
-        const myItem = {
-            id: uuid || null,
-            question: question || null,
-            answer: answer || null,
-            numRequired: numRequired || 1,
-            type: type || null
-        };
-        const { data: collection, error: fetchError } = await fetchCollection(token, category, author_id);
-        if (fetchError) {
-            console.error("Error fetching collection:", fetchError);
-            return res.status(500).json({ error: "Failed to fetch collection", details: fetchError });
-        }
-        const updatedItems = collection.items ? [...collection.items, myItem] : [myItem];
-        const { data, error } = await updateCollectionItems(token, category, updatedItems, author_id);
-        if (error) {
-            console.error("Error updating collection:", error);
-            return res.status(500).json({ error: "Failed to update collection", details: error });
-        }
+
+        const data = await addItemToCollectionHelper(token, category, author_id, req.body);
         res.status(201).json(data);
     } catch (err) {
         console.error("Unexpected error:", err);
