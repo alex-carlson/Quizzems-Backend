@@ -233,30 +233,57 @@ export const RemoveItemFromCollection = async (req, res) => {
 
 export const EditItemInCollection = async (req, res) => {
     try {
-        const { collection, id, author_id, ...updateFields } = req.body;
+        const { collection, id, author_id, existingItemId, isUpdate, ...updateFields } = req.body;
         const token = getToken(req);
+        // hack for inconsistent collection name
         if (!token) {
             return res.status(401).json({ error: "No token provided" });
         }
-        if (!collection || !id) {
+        if (!collection) {
             return res.status(400).json({ error: "Missing required fields" });
         }
+
+        // If isUpdate flag is present, use the addItemToCollectionHelper for updating
+        if (isUpdate) {
+            try {
+                const data = await addItemToCollectionHelper(req, token, collection, author_id, req.body, true);
+                // Find the updated item from the collection
+                const updatedCollection = await fetchCollection(token, collection, author_id);
+                const updatedItem = updatedCollection.data?.items?.find(item => item.id === req.body.id);
+                return res.status(200).json({ message: "Item updated successfully", item: updatedItem, data });
+            } catch (error) {
+                console.error("Error updating item:", error);
+                return res.status(500).json({ error: "Failed to update item", details: error.message });
+            }
+        }
+
+        // Original logic for direct item editing
+        if (!existingItemId) {
+            return res.status(400).json({ error: "Missing existingItemId for direct edit" });
+        }
+
         const { data, error } = await fetchCollection(token, collection, author_id);
         if (error) {
             console.error("Error fetching collection:", error);
             return res.status(500).json({ error: "Failed to fetch collection", details: error });
         }
+
+        let updatedItem = null;
         let items = data.items;
-        items = items.map(item =>
-            item.id === id ? { ...item, ...updateFields } : item
-        );
+        items = items.map(item => {
+            if (item.id === existingItemId) {
+                updatedItem = { ...item, ...updateFields };
+                return updatedItem;
+            }
+            return item;
+        });
 
         const { error: updateError } = await updateCollectionItems(token, collection, items, author_id);
         if (updateError) {
             console.error("Error updating collection:", updateError);
             return res.status(500).json({ error: "Failed to update collection", details: updateError });
         } else {
-            res.status(200).json({ message: "Item updated successfully" });
+            res.status(200).json({ message: "Item updated successfully", item: updatedItem });
         }
     } catch (err) {
         console.error("Unexpected error:", err);
