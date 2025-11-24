@@ -1,4 +1,5 @@
 import { getSupabaseClientWithToken, supabase } from "../config/supabaseClient.js";
+import crypto from "crypto";
 
 // Helper: Extract token from request
 const getToken = (req) => req.headers.authorization?.split(" ")[1];
