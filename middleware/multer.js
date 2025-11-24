@@ -59,7 +59,26 @@ export const uploadUrlToSupabase = async (req, res, next) => {
                 folder, uuid, bucket, fileUrl, fileName,
             });
 
-            const fileResponse = await axios.get(fileUrl, { responseType: "arraybuffer" });
+            // Fetch the image with proper headers to handle CORS and other issues
+            const fileResponse = await axios.get(fileUrl, {
+                responseType: "arraybuffer",
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                    'Accept': 'image/*,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Connection': 'keep-alive',
+                    'Upgrade-Insecure-Requests': '1',
+                },
+                timeout: 30000, // 30 second timeout
+                maxRedirects: 5,
+                validateStatus: (status) => status < 400 // Accept all status codes under 400
+            });
+
+            if (!fileResponse.data) {
+                throw new Error("No image data received from URL");
+            }
+
             let fileBuffer = Buffer.from(fileResponse.data, "binary");
             let contentType = fileResponse.headers["content-type"] || "application/octet-stream";
             let finalFileName = fileName || uuid;
@@ -93,7 +112,58 @@ export const uploadUrlToSupabase = async (req, res, next) => {
             }
         } catch (error) {
             console.error("❌ Unexpected Error:", error);
-            res.status(500).json({ message: "Internal Server Error", details: error.message });
+
+            // Provide more specific error messages
+            if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
+                return res.status(400).json({
+                    message: "Unable to fetch image from URL",
+                    details: "The image URL may be invalid or the server is not reachable",
+                    originalError: error.message
+                });
+            }
+
+            if (error.response) {
+                // The request was made and the server responded with a status code
+                // that falls out of the range of 2xx
+                const statusCode = error.response.status;
+                const statusText = error.response.statusText;
+
+                if (statusCode === 403 || statusCode === 401) {
+                    return res.status(400).json({
+                        message: "Access denied to image URL",
+                        details: `Server returned ${statusCode}: ${statusText}. The image may be protected or require authentication.`
+                    });
+                }
+
+                if (statusCode === 404) {
+                    return res.status(400).json({
+                        message: "Image not found",
+                        details: "The image URL returned a 404 error. Please check if the URL is correct."
+                    });
+                }
+
+                return res.status(400).json({
+                    message: "Failed to fetch image from URL",
+                    details: `Server returned ${statusCode}: ${statusText}`,
+                    statusCode: statusCode
+                });
+            }
+
+            if (error.request) {
+                // The request was made but no response was received (likely CORS or network issue)
+                return res.status(400).json({
+                    message: "Network error when fetching image",
+                    details: "This may be due to CORS restrictions, network connectivity issues, or the server blocking our request. Try using a direct image URL or uploading the file instead.",
+                    suggestion: "Consider downloading the image and uploading it directly instead of using the URL."
+                });
+            }
+
+            // Something else happened in setting up the request
+            res.status(500).json({
+                message: "Internal Server Error",
+                details: error.message,
+                type: "unexpected_error"
+            });
         }
     });
 };
