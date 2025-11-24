@@ -1,6 +1,7 @@
 import multer from "multer";
 import axios from "axios";
 import sharp from "sharp";
+import https from "https";
 import { limit } from "../utils/rateLimit.js";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
@@ -60,7 +61,7 @@ export const uploadUrlToSupabase = async (req, res, next) => {
             });
 
             // Fetch the image with proper headers to handle CORS and other issues
-            const fileResponse = await axios.get(fileUrl, {
+            const axiosConfig = {
                 responseType: "arraybuffer",
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -69,11 +70,25 @@ export const uploadUrlToSupabase = async (req, res, next) => {
                     'Accept-Encoding': 'gzip, deflate, br',
                     'Connection': 'keep-alive',
                     'Upgrade-Insecure-Requests': '1',
+                    'Sec-Fetch-Dest': 'image',
+                    'Sec-Fetch-Mode': 'no-cors',
+                    'Sec-Fetch-Site': 'cross-site',
                 },
                 timeout: 30000, // 30 second timeout
                 maxRedirects: 5,
-                validateStatus: (status) => status < 400 // Accept all status codes under 400
-            });
+                validateStatus: (status) => status < 400, // Accept all status codes under 400
+                // Additional config for AWS EC2 deployment
+                httpsAgent: new https.Agent({
+                    rejectUnauthorized: false, // Handle self-signed certificates
+                }),
+                // Disable proxy detection that might interfere on EC2
+                proxy: false,
+                decompress: true,
+                maxContentLength: 50 * 1024 * 1024, // 50MB max
+                maxBodyLength: 50 * 1024 * 1024, // 50MB max
+            };
+
+            const fileResponse = await axios.get(fileUrl, axiosConfig);
 
             if (!fileResponse.data) {
                 throw new Error("No image data received from URL");
