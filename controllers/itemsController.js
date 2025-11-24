@@ -34,25 +34,18 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
         throw new Error(`Failed to fetch collection: ${fetchError.message}`);
     }
 
-    console.log("Body:", itemData);
-
     // Parse JSON strings for array fields
     const parsedItemData = { ...itemData };
-    if (typeof parsedItemData.answers === 'string') {
+
+    // Only parse answers if questionType requires it or answers field exists
+    if ((parsedItemData.answerType === 'multiplechoice' ||
+        parsedItemData.answerType === 'multipleanswer' ||
+        parsedItemData.answers) &&
+        typeof parsedItemData.answers === 'string') {
         try {
             parsedItemData.answers = JSON.parse(parsedItemData.answers);
         } catch (e) {
             console.warn('Failed to parse answers as JSON:', parsedItemData.answers);
-        }
-    }
-    if (typeof parsedItemData.answer === 'string') {
-        try {
-            // Check if answer looks like a JSON array
-            if (parsedItemData.answer.startsWith('[') && parsedItemData.answer.endsWith(']')) {
-                parsedItemData.answer = JSON.parse(parsedItemData.answer);
-            }
-        } catch (e) {
-            console.warn('Failed to parse answer as JSON:', parsedItemData.answer);
         }
     }
 
@@ -252,6 +245,8 @@ export const EditItemInCollection = async (req, res) => {
         if (!collection) {
             return res.status(400).json({ error: "Missing required fields" });
         }
+
+        console.log("Editing item with data: ", req.body);
 
         // If isUpdate flag is present, use the addItemToCollectionHelper for updating
         if (isUpdate) {
