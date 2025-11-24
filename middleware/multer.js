@@ -32,7 +32,8 @@ async function uploadToS3(buffer, fileName, contentType) {
     await s3Client.send(command); // This will overwrite any existing file with the same key
     // Construct public URL with cache buster
     const endpoint = process.env.AWS_S3_PUBLIC_URL || process.env.AWS_S3_ENDPOINT;
-    console.log(`Uploading to S3: ${endpoint.replace(/\/$/, "")}/${fileName}`);
+    const cacheBuster = `cb=${Date.now()}`;
+    console.log(`Uploading to S3: ${endpoint.replace(/\/$/, "")}/${fileName}?${cacheBuster}`);
     return `${endpoint.replace(/\/$/, "")}/${fileName}`;
 }
 

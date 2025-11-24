@@ -56,8 +56,11 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
     // Remove metadata fields that shouldn't be part of the item
     const { folder, category: categoryField, isUpdate, author_id: authorIdField, forceJpeg, collection: collectionField, author_uuid, ...itemFields } = parsedItemData;
 
-    // Validate required fields
-    if (!itemFields.questionType || !itemFields.answerType) {
+    // Validate required fields - provide defaults for URL uploads
+    const questionType = itemFields.questionType || 'image';
+    const answerType = itemFields.answerType || 'text';
+    
+    if (!questionType || !answerType) {
         throw new Error("Missing required fields: questionType and answerType are required");
     }
 
@@ -67,8 +70,8 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
         numRequired: itemFields.numRequired || 1,
         correctAnswerIndex: itemFields.correctAnswerIndex || 0,
         type: itemFields.type || 'default',
-        questionType: itemFields.questionType,
-        answerType: itemFields.answerType,
+        questionType: questionType,
+        answerType: answerType,
         ...itemFields // Spread additional fields
     };
 
