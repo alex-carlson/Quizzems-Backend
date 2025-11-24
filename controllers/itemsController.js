@@ -34,6 +34,10 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
         throw new Error(`Failed to fetch collection: ${fetchError.message}`);
     }
 
+    if (!collection) {
+        throw new Error("Collection not found or access denied");
+    }
+
     // Parse JSON strings for array fields
     const parsedItemData = { ...itemData };
 
@@ -75,24 +79,23 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
     }
 
     let updatedItems;
-    if (collection.items && Array.isArray(collection.items)) {
-        if (shouldUpdate) {
-            const existingIndex = collection.items.findIndex(item => item.id === myItem.id);
-            if (existingIndex !== -1) {
-                // Update existing item
-                updatedItems = collection.items.map(item =>
-                    item.id === myItem.id ? { ...item, ...myItem } : item
-                );
-            } else {
-                // Append new item
-                updatedItems = [...collection.items, myItem];
-            }
+    // Safely access collection items with proper error handling
+    const existingItems = (collection && collection.items && Array.isArray(collection.items)) ? collection.items : [];
+
+    if (shouldUpdate && existingItems.length > 0) {
+        const existingIndex = existingItems.findIndex(item => item.id === myItem.id);
+        if (existingIndex !== -1) {
+            // Update existing item
+            updatedItems = existingItems.map(item =>
+                item.id === myItem.id ? { ...item, ...myItem } : item
+            );
         } else {
-            // Always append new item
-            updatedItems = [...collection.items, myItem];
+            // Append new item
+            updatedItems = [...existingItems, myItem];
         }
     } else {
-        updatedItems = [myItem];
+        // Always append new item or create first item
+        updatedItems = [...existingItems, myItem];
     }
 
     const { data, error } = await updateCollectionItems(token, category, updatedItems, author_id);
