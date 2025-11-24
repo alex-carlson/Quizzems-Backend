@@ -56,7 +56,6 @@ async function tryThumbnailPaths(collection) {
     const pathsToTry = [sanitizedPath, unsanitizedPath];
     for (const path of pathsToTry) {
         try {
-            console.log(`Checking thumbnail path: ${path}`);
             const { data: thumbnailData } = supabase.storage.from('uploads').getPublicUrl(path);
             if (thumbnailData?.publicUrl) {
                 // Do a HEAD request to verify existence

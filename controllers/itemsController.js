@@ -56,13 +56,23 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
         }
     }
 
+    // Remove metadata fields that shouldn't be part of the item
+    const { folder, category: categoryField, isUpdate, author_id: authorIdField, forceJpeg, collection: collectionField, author_uuid, ...itemFields } = parsedItemData;
+
+    // Validate required fields
+    if (!itemFields.questionType || !itemFields.answerType) {
+        throw new Error("Missing required fields: questionType and answerType are required");
+    }
+
     // Create item with common fields
     const myItem = {
-        id: parsedItemData.id || crypto.randomUUID(),
-        numRequired: parsedItemData.numRequired || 1,
-        correctAnswerIndex: parsedItemData.correctAnswerIndex || 0,
-        type: parsedItemData.type || 'default',
-        ...parsedItemData // Spread additional fields
+        id: itemFields.id || crypto.randomUUID(),
+        numRequired: itemFields.numRequired || 1,
+        correctAnswerIndex: itemFields.correctAnswerIndex || 0,
+        type: itemFields.type || 'default',
+        questionType: itemFields.questionType,
+        answerType: itemFields.answerType,
+        ...itemFields // Spread additional fields
     };
 
     // Add uploaded image URL as src and image if it exists
@@ -233,7 +243,7 @@ export const RemoveItemFromCollection = async (req, res) => {
 
 export const EditItemInCollection = async (req, res) => {
     try {
-        const { collection, id, author_id, existingItemId, isUpdate, ...updateFields } = req.body;
+        const { collection, id, author_id, existingItemId, isUpdate, folder, forceJpeg, author_uuid, ...updateFields } = req.body;
         const token = getToken(req);
         // hack for inconsistent collection name
         if (!token) {
@@ -260,6 +270,14 @@ export const EditItemInCollection = async (req, res) => {
         // Original logic for direct item editing
         if (!existingItemId) {
             return res.status(400).json({ error: "Missing existingItemId for direct edit" });
+        }
+
+        // Validate required fields if they are being updated
+        if (updateFields.hasOwnProperty('questionType') && !updateFields.questionType) {
+            return res.status(400).json({ error: "questionType is required" });
+        }
+        if (updateFields.hasOwnProperty('answerType') && !updateFields.answerType) {
+            return res.status(400).json({ error: "answerType is required" });
         }
 
         const { data, error } = await fetchCollection(token, collection, author_id);
