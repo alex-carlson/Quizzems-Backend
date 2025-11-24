@@ -56,8 +56,13 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
     // Remove metadata fields that shouldn't be part of the item
     const { folder, category: categoryField, isUpdate, author_id: authorIdField, forceJpeg, collection: collectionField, author_uuid, ...itemFields } = parsedItemData;
 
-    // Validate required fields
-    if (!itemFields.questionType || !itemFields.answerType) {
+    // Validate required fields - be more lenient for image uploads via URL
+    if (!itemFields.questionType && !itemFields.answerType) {
+        // If neither is provided, this might be a legacy URL upload, provide defaults
+        itemFields.questionType = 'image';
+        itemFields.answerType = 'text';
+    } else if (!itemFields.questionType || !itemFields.answerType) {
+        // If only one is provided, require both
         throw new Error("Missing required fields: questionType and answerType are required");
     }
 
