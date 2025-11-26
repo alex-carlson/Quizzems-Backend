@@ -1,5 +1,6 @@
 import { getSupabaseClientWithToken, supabase } from "../config/supabaseClient.js";
 import crypto from "crypto";
+import { deleteFromS3 } from "../middleware/multer.js";
 
 // Helper: Extract token from request
 const getToken = (req) => req.headers.authorization?.split(" ")[1];
@@ -80,6 +81,7 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
 
     // Add uploaded image URL as src and image if it exists
     if (req.uploadedImageUrl) {
+        console.log("Got added image: ", req.uploadedImageUrl);
         myItem.src = req.uploadedImageUrl;
         myItem.image = req.uploadedImageUrl;
     }
@@ -222,14 +224,23 @@ export const RemoveItemFromCollection = async (req, res) => {
             console.error("Error fetching collection:", fetchError);
             return res.status(500).json({ error: "Failed to fetch collection", details: fetchError });
         }
+
+        // Find the item to get its filename for deletion
+        const itemToDelete = collection.items.find(item => item.id === itemId);
         const updatedItems = collection.items.filter((i) => i.id !== itemId);
-        // also delete the image from storage
-        const { error: deleteError } = await getSupabaseClientWithToken(token).storage
-            .from("uploads")
-            .remove([`uploads/${category}/${itemId}`]);
-        if (deleteError) {
-            console.error("Error deleting image from storage:", deleteError);
-            return res.status(500).json({ error: "Failed to delete image from storage", details: deleteError });
+
+        // Delete the image from R2/S3 storage if item has an image
+        if (itemToDelete && (itemToDelete.src || itemToDelete.image)) {
+            try {
+                // Extract filename from URL (assuming URL format: https://domain.com/filename)
+                const imageUrl = itemToDelete.src || itemToDelete.image;
+                const fileName = imageUrl.split('/').pop().split('?')[0]; // Remove query params
+                await deleteFromS3(fileName);
+                console.log(`Successfully deleted image: ${fileName}`);
+            } catch (deleteError) {
+                console.error("Error deleting image from R2 storage:", deleteError);
+                // Continue with item removal even if image deletion fails
+            }
         }
         const { data, error } = await updateCollectionItems(token, category, updatedItems);
         if (error) {

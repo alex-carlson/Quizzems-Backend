@@ -3,7 +3,7 @@ import axios from "axios";
 import sharp from "sharp";
 import https from "https";
 import { limit } from "../utils/rateLimit.js";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
@@ -35,6 +35,21 @@ async function uploadToS3(buffer, fileName, contentType) {
     const cacheBuster = `cb=${Date.now()}`;
     console.log(`Uploading to S3: ${endpoint.replace(/\/$/, "")}/${fileName}?${cacheBuster}`);
     return `${endpoint.replace(/\/$/, "")}/${fileName}`;
+}
+
+async function deleteFromS3(fileName) {
+    try {
+        const command = new DeleteObjectCommand({
+            Bucket: s3Bucket,
+            Key: fileName,
+        });
+        await s3Client.send(command);
+        console.log(`Deleted from S3: ${fileName}`);
+        return true;
+    } catch (error) {
+        console.error(`Failed to delete from S3: ${fileName}`, error);
+        throw error;
+    }
 }
 
 function sanitizeName(name) {
@@ -221,7 +236,7 @@ export const UploadToSupabase = async (req, res, next) => {
         const safeFolder = sanitizeName(folder || "uploads");
         const finalFileName = `${uuid}.${fileExtension}`;
 
-        console.log("🚀 Final file name:", finalFileName);
+        console.log("Final file name:", finalFileName);
         console.log("Safe folder name:", safeFolder);
 
 
@@ -241,4 +256,4 @@ export const UploadToSupabase = async (req, res, next) => {
     }
 };
 
-export { upload };
+export { upload, deleteFromS3 };

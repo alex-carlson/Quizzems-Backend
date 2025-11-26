@@ -27,7 +27,6 @@ setupSocketIO(io); // ✅ Initialize socket handlers
 
 server.listen(PORT, () => {
   console.log(`Server is running with Socket.IO on port ${PORT}`);
-  console.log(`Allowed origins: ${allowedOrigins.join(', ')}`);
 });
 
 export default server;
