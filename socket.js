@@ -47,9 +47,11 @@ export function setupSocketIO(io) {
             rooms[code].finishedPlayers = [];
             rooms[code].players = rooms[code].players || [];
             socket.join(code);
-            // socket.emit('room-created', { code, room: rooms[code] });
+
+            // Emit room-created to confirm room creation
+            socket.emit('room-created', { code, room: rooms[code] });
+            // Also emit room-update to all in the room
             io.to(code).emit('room-update', rooms[code]);
-            io.to(socket.id).emit('room-created', { code, room: rooms[code] });
         });
 
         socket.on('join-room', async ({ code }) => {
@@ -97,7 +99,24 @@ export function setupSocketIO(io) {
             }
 
             rooms[code].isStarted = true;
-            io.to(code).emit('game-started', rooms[code]);
+            rooms[code].shuffleSeed = Math.random(); // Add shuffle seed for consistent card order
+            io.to(code).emit('game-started', { room: rooms[code], shuffleSeed: rooms[code].shuffleSeed });
+        });
+
+        socket.on('get-game-state', ({ code }) => {
+            if (!rooms[code]) {
+                socket.emit('error', 'Room not found');
+                return;
+            }
+
+            // Send current game state to the requesting socket
+            socket.emit('game-state-response', {
+                room: rooms[code],
+                scores: rooms[code].scores || {},
+                cards: rooms[code].cards || {},
+                finishedPlayers: rooms[code].finishedPlayers || [],
+                shuffleSeed: rooms[code].shuffleSeed
+            });
         });
 
         socket.on('score-point', ({ code, playerId, cardIndex }) => {
@@ -178,11 +197,14 @@ export function setupSocketIO(io) {
             room.isStarted = false;
             room.isFinished = false;
             room.scores = {};
+            room.cards = {};
             room.finishedPlayers = [];
+            room.shuffleSeed = null;
             room.players = [room.hostId]; // Reset players to just the host
-            room.userSockets = { [room.hostId]: socket.id }; // Reset userSockets to just the host
+            room.userSockets = { [room.hostId]: room.userSockets[room.hostId] }; // Keep host socket
 
             io.to(code).emit('room-reset', room);
+            io.to(code).emit('room-update', room);
         });
 
         socket.on('disconnect', () => {
