@@ -17,7 +17,7 @@ const router = Router();
 router.post(
     '/upload',
     verifySupabaseToken,
-    // contentModeration,
+    contentModeration,
     upload.single('file'),
     UploadToSupabase,
     AddItemToCollection

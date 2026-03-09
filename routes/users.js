@@ -9,7 +9,7 @@ const router = Router();
 router.post(
     '/uploadAvatar',
     verifySupabaseToken,
-    // contentModeration,
+    contentModeration,
     upload.single('file'),
     UploadToSupabase,
     uploadUserAvatar

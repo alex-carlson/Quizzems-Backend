@@ -4,6 +4,7 @@ import sharp from "sharp";
 import https from "https";
 import { limit } from "../utils/rateLimit.js";
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { convertGifOnUpload } from "../utils/gifConverter.js";
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
@@ -136,6 +137,23 @@ export const uploadUrlToSupabase = async (req, res, next) => {
                 const publicURL = await uploadToS3(fileBuffer, finalFileName, contentType);
                 console.log("🚀 S3 Public URL:", publicURL);
                 req.uploadedImageUrl = publicURL;
+
+                // Convert GIF asynchronously if this is a GIF upload
+                if (finalFileName.toLowerCase().endsWith('.gif')) {
+                    console.log("🔄 Starting GIF conversion for URL upload:", finalFileName);
+                    convertGifOnUpload(finalFileName, fileBuffer)
+                        .then(result => {
+                            if (result && !result.skipped) {
+                                console.log("✅ GIF conversion completed:", finalFileName);
+                            } else if (result && result.skipped) {
+                                console.log("ℹ️ GIF conversion skipped (files exist):", finalFileName);
+                            }
+                        })
+                        .catch(error => {
+                            console.error("❌ GIF conversion failed:", finalFileName, error.message);
+                        });
+                }
+
                 return next();
             } catch (error) {
                 console.error("❌ S3 Upload Error:", error);
@@ -245,6 +263,23 @@ export const UploadToSupabase = async (req, res, next) => {
             const publicURL = await uploadToS3(file.buffer, finalFileName, file.mimetype);
             console.log("🚀 S3 Public URL:", publicURL);
             req.uploadedImageUrl = publicURL;
+
+            // Convert GIF asynchronously if this is a GIF upload
+            if (fileExtension === 'gif') {
+                console.log("🔄 Starting GIF conversion for:", finalFileName);
+                convertGifOnUpload(finalFileName, file.buffer)
+                    .then(result => {
+                        if (result && !result.skipped) {
+                            console.log("✅ GIF conversion completed:", finalFileName);
+                        } else if (result && result.skipped) {
+                            console.log("ℹ️ GIF conversion skipped (files exist):", finalFileName);
+                        }
+                    })
+                    .catch(error => {
+                        console.error("❌ GIF conversion failed:", finalFileName, error.message);
+                    });
+            }
+
             return next();
         } catch (error) {
             console.error("❌ S3 Upload Error:", error);
