@@ -9,7 +9,6 @@ import {
     AddThumbnailToCollection,
 } from '../controllers/itemsController.js';
 import { upload, UploadToSupabase, uploadUrlToSupabase } from '../middleware/multer.js';
-import { contentModeration } from '../middleware/contentModeration.js';
 import verifySupabaseToken from '../middleware/supabaseAuth.js';
 
 const router = Router();
@@ -17,7 +16,6 @@ const router = Router();
 router.post(
     '/upload',
     verifySupabaseToken,
-    // contentModeration,
     upload.single('file'),
     UploadToSupabase,
     AddItemToCollection
