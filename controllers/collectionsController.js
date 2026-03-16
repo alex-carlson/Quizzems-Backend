@@ -530,17 +530,88 @@ export const getUserCollectionId = async (req, res) => {
 export const getUserCollection = async (req, res) => {
     try {
         const { username, collection } = req.params;
-        const { data, error } = await supabase.from('collections').select('*, profiles(username, public_id, username_slug)').eq('category', collection).eq('author', username).single();
+
+        // Log incoming parameters
+        console.log('getUserCollection called with params:', {
+            username,
+            collection,
+            fullParams: req.params,
+            query: req.query,
+            method: req.method,
+            path: req.path
+        });
+
+        // Validate input parameters
+        if (!username || !collection) {
+            console.error('Missing required parameters:', { username, collection });
+            return res.status(400).json({
+                error: 'Missing required parameters',
+                received: { username, collection }
+            });
+        }
+
+        console.log('Querying database with filters:', {
+            category: collection,
+            author: username
+        });
+
+        const { data, error } = await supabase
+            .from('collections')
+            .select('*, profiles(username, public_id, username_slug)')
+            .eq('category', collection)
+            .eq('author', username)
+            .single();
+
+        // Log database response
+        console.log('Database query result:', {
+            hasData: !!data,
+            hasError: !!error,
+            error: error?.message,
+            dataKeys: data ? Object.keys(data) : null,
+            profilesData: data?.profiles || null
+        });
 
         if (error) {
+            console.error('Supabase query error:', {
+                message: error.message,
+                details: error.details,
+                hint: error.hint,
+                code: error.code
+            });
             return res.status(500).json({ error: error.message });
         }
 
+        if (!data) {
+            console.log('No collection found for query parameters:', { username, collection });
+            return res.status(404).json({
+                error: 'Collection not found',
+                searchedFor: { username, collection }
+            });
+        }
+
+        console.log('Found collection, adding thumbnail...');
+
         // Add thumbnail to single collection
         const collectionWithThumbnail = await addThumbnailsToCollections([data]);
+
+        console.log('Successfully processed collection:', {
+            collectionId: data.id,
+            category: data.category,
+            hasThumbnail: !!collectionWithThumbnail[0]?.thumbnail_url
+        });
+
         res.json(collectionWithThumbnail[0]);
     } catch (err) {
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('getUserCollection error:', {
+            message: err.message,
+            stack: err.stack,
+            params: req.params,
+            query: req.query
+        });
+        res.status(500).json({
+            error: 'Internal Server Error',
+            debug: process.env.NODE_ENV === 'development' ? err.message : undefined
+        });
     }
 };
 
