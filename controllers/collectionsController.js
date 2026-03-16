@@ -517,6 +517,8 @@ export const getUserCollectionId = async (req, res) => {
             return res.status(404).json({ error: 'Collection not found' });
         }
 
+        console.log("Got collection!");
+
         res.status(200).json({ id: match.id });
 
     } catch (err) {
