@@ -1,8 +1,13 @@
 import express from 'express';
 import cors from 'cors';
 import routes from './routes/index.js';
+import { validateR2Config } from './utils/cloudflareR2.js';
 
 const app = express();
+
+// Validate R2 configuration at startup
+console.log('\n🚀 Starting Flash Backend...');
+validateR2Config();
 
 const allowedOrigins = [
     process.env.FRONTEND_URL || 'http://localhost:5173',

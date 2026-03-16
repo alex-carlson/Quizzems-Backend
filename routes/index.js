@@ -4,6 +4,7 @@ import itemRoutes from './items.js';
 import userRoutes from './users.js';
 import partyRoutes from './party.js';
 import youtubeRoutes from './youtube.js'; // Assuming you have a youtube.js router
+import { getR2StorageInfo, validateR2Config } from '../utils/cloudflareR2.js';
 
 const router = Router();
 
@@ -12,7 +13,9 @@ router.get('/', (req, res) => {
     const uptime = process.uptime();
     const uptimeFormatted = new Date(uptime * 1000).toISOString().substr(11, 8);
     const memoryUsage = process.memoryUsage();
-    
+    // Get R2 storage info
+    const r2Info = getR2StorageInfo();
+    const r2ConfigValid = validateR2Config();
     const html = `
     <!DOCTYPE html>
     <html lang="en">
@@ -227,6 +230,20 @@ router.get('/', (req, res) => {
                         <h3>Environment</h3>
                         <div class="status-value">${process.env.NODE_ENV || 'development'}</div>
                     </div>
+                    <div class="status-card">
+                        <h3>Storage</h3>
+                        <div class="status-value">☁️ Cloudflare R2</div>
+                        <div style="font-size: 0.7rem; color: #6c757d; margin-top: 5px;">
+                            ${r2ConfigValid ? '✅ Configured' : '❌ Missing Config'}
+                        </div>
+                    </div>
+                    <div class="status-card">
+                        <h3>R2 Bucket</h3>
+                        <div class="status-value">${r2Info.bucket || 'Not Set'}</div>
+                        <div style="font-size: 0.7rem; color: #6c757d; margin-top: 5px;">
+                            API Token: ${r2Info.apiTokenConfigured ? '✅' : '❌'}
+                        </div>
+                    </div>
                 </div>
 
                 <div class="routes-section">
@@ -422,13 +439,24 @@ router.get('/', (req, res) => {
 
 // Health check endpoint for APIs/monitoring
 router.get('/health', (req, res) => {
+    const r2Info = getR2StorageInfo();
+    const r2ConfigValid = validateR2Config();
+
     const healthData = {
         status: 'healthy',
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         memory: process.memoryUsage(),
         version: process.version,
-        environment: process.env.NODE_ENV || 'development'
+        environment: process.env.NODE_ENV || 'development',
+        storage: {
+            provider: r2Info.provider,
+            bucket: r2Info.bucket,
+            configured: r2ConfigValid,
+            apiTokenAvailable: r2Info.apiTokenConfigured,
+            endpoint: r2Info.endpoint,
+            publicUrl: r2Info.publicUrl
+        }
     };
     res.json(healthData);
 });

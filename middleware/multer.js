@@ -9,46 +9,76 @@ import { convertGifOnUpload } from "../utils/gifConverter.js";
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// S3 config (use env vars)
+// Cloudflare R2 config (S3-compatible API)
 const s3Client = new S3Client({
-    region: process.env.AWS_REGION || "auto",
+    region: process.env.AWS_REGION || "auto", // R2 uses 'auto' region
     endpoint: process.env.AWS_S3_ENDPOINT, // R2 endpoint
     credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID,
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
     },
+    // R2-specific optimizations
+    forcePathStyle: true, // Required for R2
+    requestHandler: {
+        requestTimeout: 30000, // 30 second timeout
+        httpsAgent: {
+            maxSockets: 25,
+        }
+    },
 });
 const s3Bucket = process.env.AWS_S3_BUCKET || "uploads";
 
-async function uploadToS3(buffer, fileName, contentType) {
-    // Always overwrite the file if it exists (PutObjectCommand will overwrite by default)
-    const command = new PutObjectCommand({
-        Bucket: s3Bucket,
-        Key: fileName,
-        Body: buffer,
-        ContentType: contentType,
-        ACL: "public-read",
-        CacheControl: "no-cache, max-age=0, must-revalidate"
-    });
-    await s3Client.send(command); // This will overwrite any existing file with the same key
-    // Construct public URL with cache buster
-    const endpoint = process.env.AWS_S3_PUBLIC_URL || process.env.AWS_S3_ENDPOINT;
-    const cacheBuster = `cb=${Date.now()}`;
-    console.log(`Uploading to S3: ${endpoint.replace(/\/$/, "")}/${fileName}?${cacheBuster}`);
-    return `${endpoint.replace(/\/$/, "")}/${fileName}`;
+async function uploadToR2(buffer, fileName, contentType) {
+    try {
+        // Cloudflare R2 optimized upload
+        const command = new PutObjectCommand({
+            Bucket: s3Bucket,
+            Key: fileName,
+            Body: buffer,
+            ContentType: contentType,
+            // R2 doesn't support ACLs - public access is configured at bucket level
+            CacheControl: "public, max-age=31536000, immutable", // 1 year cache for images
+            Metadata: {
+                'uploaded-by': 'flash-backend',
+                'upload-timestamp': new Date().toISOString(),
+                'cloudflare-token': process.env.CLOUDFLARE_TOKEN ? 'configured' : 'not-configured'
+            }
+        });
+
+        await s3Client.send(command);
+
+        // Construct public URL using the configured public domain
+        const endpoint = process.env.AWS_S3_PUBLIC_URL || process.env.AWS_S3_ENDPOINT;
+        const publicUrl = `${endpoint.replace(/\/$/, "")}/${fileName}`;
+
+        console.log(`✅ Uploaded to Cloudflare R2: ${publicUrl}`);
+        return publicUrl;
+    } catch (error) {
+        console.error('❌ R2 Upload Error:', {
+            message: error.message,
+            code: error.code,
+            statusCode: error.$metadata?.httpStatusCode,
+            requestId: error.$metadata?.requestId
+        });
+        throw new Error(`R2 upload failed: ${error.message}`);
+    }
 }
 
-async function deleteFromS3(fileName) {
+async function deleteFromR2(fileName) {
     try {
         const command = new DeleteObjectCommand({
             Bucket: s3Bucket,
             Key: fileName,
         });
         await s3Client.send(command);
-        console.log(`Deleted from S3: ${fileName}`);
+        console.log(`✅ Deleted from Cloudflare R2: ${fileName}`);
         return true;
     } catch (error) {
-        console.error(`Failed to delete from S3: ${fileName}`, error);
+        console.error(`❌ Failed to delete from R2: ${fileName}`, {
+            message: error.message,
+            code: error.code,
+            statusCode: error.$metadata?.httpStatusCode
+        });
         throw error;
     }
 }
@@ -132,10 +162,10 @@ export const uploadUrlToSupabase = async (req, res, next) => {
                 finalFileName = fileName || `${uuid}.${fileExtension}`;
             }
 
-            // Always upload to S3 for new images
+            // Upload to Cloudflare R2
             try {
-                const publicURL = await uploadToS3(fileBuffer, finalFileName, contentType);
-                console.log("🚀 S3 Public URL:", publicURL);
+                const publicURL = await uploadToR2(fileBuffer, finalFileName, contentType);
+                console.log("🚀 R2 Public URL:", publicURL);
                 req.uploadedImageUrl = publicURL;
 
                 // Convert GIF asynchronously if this is a GIF upload
@@ -156,8 +186,8 @@ export const uploadUrlToSupabase = async (req, res, next) => {
 
                 return next();
             } catch (error) {
-                console.error("❌ S3 Upload Error:", error);
-                return res.status(400).json({ message: "Failed to upload to S3", details: error.message });
+                console.error("❌ R2 Upload Error:", error);
+                return res.status(400).json({ message: "Failed to upload to Cloudflare R2", details: error.message });
             }
         } catch (error) {
             console.error("❌ Unexpected Error:", error);
@@ -258,10 +288,10 @@ export const UploadToSupabase = async (req, res, next) => {
         console.log("Safe folder name:", safeFolder);
 
 
-        // Always upload to S3 for new images
+        // Upload to Cloudflare R2
         try {
-            const publicURL = await uploadToS3(file.buffer, finalFileName, file.mimetype);
-            console.log("🚀 S3 Public URL:", publicURL);
+            const publicURL = await uploadToR2(file.buffer, finalFileName, file.mimetype);
+            console.log("🚀 R2 Public URL:", publicURL);
             req.uploadedImageUrl = publicURL;
 
             // Convert GIF asynchronously if this is a GIF upload
@@ -282,8 +312,8 @@ export const UploadToSupabase = async (req, res, next) => {
 
             return next();
         } catch (error) {
-            console.error("❌ S3 Upload Error:", error);
-            return res.status(400).json({ message: "Failed to upload to S3", details: error.message });
+            console.error("❌ R2 Upload Error:", error);
+            return res.status(400).json({ message: "Failed to upload to Cloudflare R2", details: error.message });
         }
     } catch (error) {
         console.error("❌ Unexpected Error:", error);
@@ -291,4 +321,4 @@ export const UploadToSupabase = async (req, res, next) => {
     }
 };
 
-export { upload, deleteFromS3 };
+export { upload, deleteFromR2 };

@@ -1,6 +1,6 @@
 import { getSupabaseClientWithToken, supabase } from "../config/supabaseClient.js";
 import crypto from "crypto";
-import { deleteFromS3 } from "../middleware/multer.js";
+import { deleteFromR2 } from "../middleware/multer.js";
 
 // Helper: Extract token from request
 const getToken = (req) => req.headers.authorization?.split(" ")[1];
@@ -229,14 +229,14 @@ export const RemoveItemFromCollection = async (req, res) => {
         const itemToDelete = collection.items.find(item => item.id === itemId);
         const updatedItems = collection.items.filter((i) => i.id !== itemId);
 
-        // Delete the image from R2/S3 storage if item has an image
+        // Delete the image from Cloudflare R2 storage if item has an image
         if (itemToDelete && (itemToDelete.src || itemToDelete.image)) {
             try {
                 // Extract filename from URL (assuming URL format: https://domain.com/filename)
                 const imageUrl = itemToDelete.src || itemToDelete.image;
                 const fileName = imageUrl.split('/').pop().split('?')[0]; // Remove query params
-                await deleteFromS3(fileName);
-                console.log(`Successfully deleted image: ${fileName}`);
+                await deleteFromR2(fileName);
+                console.log(`Successfully deleted image from R2: ${fileName}`);
             } catch (deleteError) {
                 console.error("Error deleting image from R2 storage:", deleteError);
                 // Continue with item removal even if image deletion fails
