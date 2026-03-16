@@ -10,7 +10,10 @@ const allowedOrigins = [
     'https://quizzems.com',
     'https://www.quizzems.com',
     'http://localhost:3000',
-    'http://localhost:5174'
+    'http://localhost:5174',
+    'https://quizzems.vercel.app',
+    'https://*.vercel.app',
+    'https://api.quizzems.com'
 ];
 
 // Enhanced CORS configuration for AWS deployment
