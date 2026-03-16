@@ -17,7 +17,7 @@ const router = Router();
 router.post(
     '/upload',
     verifySupabaseToken,
-    contentModeration,
+    // contentModeration,
     upload.single('file'),
     UploadToSupabase,
     AddItemToCollection
@@ -29,7 +29,7 @@ router.post('/add-question', verifySupabaseToken, upload.single('file'), AddQues
 router.post('/add-thumbnail', verifySupabaseToken, upload.single('file'), UploadToSupabase, AddThumbnailToCollection);
 
 router.post('/remove', verifySupabaseToken, RemoveItemFromCollection);
-router.post('/edit', verifySupabaseToken, contentModeration, EditItemInCollection)
+router.post('/edit', verifySupabaseToken, EditItemInCollection)
 router.post('/reorder', verifySupabaseToken, ReorderItemInCollection)
 
 // Static route
