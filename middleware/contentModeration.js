@@ -4,19 +4,31 @@ import axios from "axios";
 export const contentModeration = async (req, res, next) => {
     console.log("🚀 Content Moderation Middleware Triggered");
     try {
-        // store req.uploadedImageUrl
-        const uploadedImageUrl = req.uploadedImageUrl || req.body.uploadedImageUrl;
-        console.log("🚀 Uploaded Image URL:", uploadedImageUrl);
+        // Check multiple possible sources for the image URL
+        const uploadedImageUrl = req.uploadedImageUrl ||
+            req.body.uploadedImageUrl ||
+            req.body.src ||
+            req.body.image ||
+            req.body.imageUrl;
 
+        console.log("🚀 Uploaded Image URL:", uploadedImageUrl);
+        console.log("🚀 Request body keys:", Object.keys(req.body));
+
+        // Skip content moderation if no image URL is provided
+        // This allows for non-image operations to pass through
         if (!uploadedImageUrl) {
-            return res.status(400).json({ message: "No image URL provided." });
+            console.log("ℹ️ No image URL found - skipping content moderation");
+            return next();
         }
 
-        // Simulate content moderation check
-        const isContentSafe = await checkContent(uploadedImageUrl);
+        // Only check content if we have a valid URL
+        if (typeof uploadedImageUrl === 'string' && uploadedImageUrl.trim()) {
+            console.log("🔍 Running content moderation check...");
+            const isContentSafe = await checkContent(uploadedImageUrl);
 
-        if (!isContentSafe) {
-            return res.status(400).json({ message: "Inappropriate content detected." });
+            if (!isContentSafe) {
+                return res.status(400).json({ message: "Inappropriate content detected." });
+            }
         }
 
         next();
@@ -26,7 +38,7 @@ export const contentModeration = async (req, res, next) => {
     }
 }
 
-const checkContent = async (imageUrl, filePath, res) => {
+const checkContent = async (imageUrl) => {
     try {
         const { data: result } = await axios.get('https://api.sightengine.com/1.0/check.json', {
             params: {
@@ -40,7 +52,7 @@ const checkContent = async (imageUrl, filePath, res) => {
         // Ensure the result object exists and has the expected structure
         if (!result || result.status !== 'success') {
             console.error("Invalid response from Sightengine API:", result);
-            return res.status(400).json({ message: 'Failed to analyze image content' });
+            throw new Error('Failed to analyze image content');
         }
 
         const certainty = 0.5;
@@ -61,11 +73,11 @@ const checkContent = async (imageUrl, filePath, res) => {
 
         if (!isSafe) {
             console.error("Image contains inappropriate content:", result);
-            return res.status(400).json({ message: 'Image contains illicit content' });
+            throw new Error('Image contains illicit content');
         }
         return true; // Indicate that the image is safe
     } catch (err) {
         console.error("Error during content moderation:", err.response?.data || err.message);
-        res.status(500).json({ message: 'Error checking image content', details: err.message });
+        throw new Error(`Error checking image content: ${err.message}`);
     }
 };
