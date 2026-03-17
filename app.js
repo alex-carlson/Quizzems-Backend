@@ -5,8 +5,6 @@ import { validateR2Config } from './utils/cloudflareR2.js';
 
 const app = express();
 
-// Validate R2 configuration at startup
-console.log('\n🚀 Starting Flash Backend...');
 validateR2Config();
 
 const allowedOrigins = [

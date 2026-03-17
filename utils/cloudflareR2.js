@@ -75,14 +75,6 @@ export function validateR2Config() {
         return false;
     }
 
-    console.log('✅ R2 configuration validated successfully');
-    console.log('📊 R2 Configuration:', {
-        endpoint: process.env.AWS_S3_ENDPOINT,
-        bucket: process.env.AWS_S3_BUCKET,
-        publicUrl: process.env.AWS_S3_PUBLIC_URL,
-        hasCloudflareToken: !!process.env.CLOUDFLARE_TOKEN
-    });
-
     return true;
 }
 

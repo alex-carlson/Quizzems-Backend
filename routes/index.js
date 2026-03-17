@@ -171,6 +171,21 @@ router.get('/', (req, res) => {
                 margin-right: 15px;
             }
 
+            .route-path.clickable {
+                background: #e7f3ff;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                text-decoration: none;
+                display: inline-block;
+                color: #0066cc;
+            }
+
+            .route-path.clickable:hover {
+                background: #d0e7ff;
+                transform: translateY(-1px);
+                box-shadow: 0 2px 4px rgba(0, 102, 204, 0.2);
+            }
+
             .route-description {
                 color: #6c757d;
                 font-size: 0.9rem;
@@ -254,42 +269,42 @@ router.get('/', (req, res) => {
                         <div class="route-list">
                             <div class="route-item">
                                 <span class="method method-get">GET</span>
-                                <span class="route-path">/collections</span>
+                                <a href="/collections" target="_blank" class="route-path clickable">/collections</a>
                                 <span class="route-description">Get all public collections</span>
                             </div>
                             <div class="route-item">
                                 <span class="method method-get">GET</span>
-                                <span class="route-path">/collections/latest</span>
+                                <a href="/collections/latest" target="_blank" class="route-path clickable">/collections/latest</a>
                                 <span class="route-description">Get latest collections</span>
                             </div>
                             <div class="route-item">
                                 <span class="method method-get">GET</span>
-                                <span class="route-path">/collections/popular</span>
+                                <a href="/collections/popular" target="_blank" class="route-path clickable">/collections/popular</a>
                                 <span class="route-description">Get most popular collections</span>
                             </div>
                             <div class="route-item">
                                 <span class="method method-get">GET</span>
-                                <span class="route-path">/collections/random/:limit</span>
+                                <a href="/collections/random/5" target="_blank" class="route-path clickable">/collections/random/:limit</a>
                                 <span class="route-description">Get random collections</span>
                             </div>
                             <div class="route-item">
                                 <span class="method method-get">GET</span>
-                                <span class="route-path">/collections/daily</span>
+                                <a href="/collections/daily" target="_blank" class="route-path clickable">/collections/daily</a>
                                 <span class="route-description">Get daily featured collection</span>
                             </div>
                             <div class="route-item">
                                 <span class="method method-get">GET</span>
-                                <span class="route-path">/collections/search</span>
+                                <a href="/collections/search" target="_blank" class="route-path clickable">/collections/search</a>
                                 <span class="route-description">Search collections</span>
                             </div>
                             <div class="route-item">
                                 <span class="method method-get">GET</span>
-                                <span class="route-path">/collections/tags/:tag</span>
+                                <a href="/collections/tags/example" target="_blank" class="route-path clickable">/collections/tags/:tag</a>
                                 <span class="route-description">Get collections by tag</span>
                             </div>
                             <div class="route-item">
                                 <span class="method method-get">GET</span>
-                                <span class="route-path">/collections/users/:uid</span>
+                                <a href="/collections/users/example" target="_blank" class="route-path clickable">/collections/users/:uid</a>
                                 <span class="route-description">Get user's collections</span>
                             </div>
                             <div class="route-item">
@@ -351,17 +366,17 @@ router.get('/', (req, res) => {
                         <div class="route-list">
                             <div class="route-item">
                                 <span class="method method-get">GET</span>
-                                <span class="route-path">/users/:uid</span>
+                                <a href="/users/example-uid" target="_blank" class="route-path clickable">/users/:uid</a>
                                 <span class="route-description">Get user profile</span>
                             </div>
                             <div class="route-item">
                                 <span class="method method-get">GET</span>
-                                <span class="route-path">/users/username/:slug</span>
+                                <a href="/users/username/example" target="_blank" class="route-path clickable">/users/username/:slug</a>
                                 <span class="route-description">Get user by username slug</span>
                             </div>
                             <div class="route-item">
                                 <span class="method method-get">GET</span>
-                                <span class="route-path">/users/all</span>
+                                <a href="/users/all" target="_blank" class="route-path clickable">/users/all</a>
                                 <span class="route-description">Get all usernames</span>
                             </div>
                             <div class="route-item">
@@ -402,12 +417,12 @@ router.get('/', (req, res) => {
                             </div>
                             <div class="route-item">
                                 <span class="method method-get">GET</span>
-                                <span class="route-path">/party/:code</span>
+                                <a href="/party/EXAMPLE" target="_blank" class="route-path clickable">/party/:code</a>
                                 <span class="route-description">Get party room details</span>
                             </div>
                             <div class="route-item">
                                 <span class="method method-get">GET</span>
-                                <span class="route-path">/party/:code/players</span>
+                                <a href="/party/EXAMPLE/players" target="_blank" class="route-path clickable">/party/:code/players</a>
                                 <span class="route-description">Get party players list</span>
                             </div>
                         </div>
@@ -418,7 +433,7 @@ router.get('/', (req, res) => {
                         <div class="route-list">
                             <div class="route-item">
                                 <span class="method method-get">GET</span>
-                                <span class="route-path">/youtube/search</span>
+                                <a href="/youtube/search" target="_blank" class="route-path clickable">/youtube/search</a>
                                 <span class="route-description">Search YouTube videos</span>
                             </div>
                         </div>
