@@ -517,8 +517,6 @@ export const getUserCollectionId = async (req, res) => {
             return res.status(404).json({ error: 'Collection not found' });
         }
 
-        console.log("Got collection!");
-
         res.status(200).json({ id: match.id });
 
     } catch (err) {
@@ -687,23 +685,20 @@ export const getUserCollections = async (req, res) => {
             return res.status(401).json({ error: 'No token provided' });
         }
 
-        const selection = 'category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items_length, private, tags, id, thumbnail_url';
+        const selection = 'category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items_length, private, tags, id, thumbnail_url, collaborators';
 
-        // Use .eq('author_uuid', uid) to filter by user, then join profiles
+        // Get collections where author_public_id = uid OR collaborators contains uid
         const { data, error } = await getSupabaseClientWithToken(token)
             .from('collections')
             .select(selection)
-            .eq('author_public_id', uid);
-
+            .or(`author_public_id.eq."${uid}",collaborators.cs.{"${uid}"}`)
 
         if (error) {
             return res.status(500).json({ error: error.message });
         }
-
         if (!data || data.length === 0) {
             return res.status(404).json({ error: 'No collections found for this user' });
         }
-
         res.status(200).json(data);
     } catch (err) {
         res.status(500).json({ error: 'Internal Server Error' });

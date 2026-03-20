@@ -7,24 +7,35 @@ const getToken = (req) => req.headers.authorization?.split(" ")[1];
 
 // Helper: Fetch collection by category and author_id (if provided)
 const fetchCollection = async (token, category, author_id = null) => {
-    let query = getSupabaseClientWithToken(token)
+    let supabase = getSupabaseClientWithToken(token);
+
+    let query = supabase
         .from("collections")
         .select("items")
         .eq("category", category);
+
     if (author_id !== null && author_id !== undefined) {
-        query = query.eq("author_public_id", author_id);
+        // Use .or() to check either author_public_id matches OR collaborators contains author_id
+        query = query.or(
+            `author_public_id.eq.${author_id},collaborators.cs.{${author_id}}`
+        );
     }
+
     return await query.single();
 };
 
 // Helper: Update collection items by category and author_id (if provided)
 const updateCollectionItems = async (token, category, updatedItems, author_id = null) => {
+    console.log("Updating collection items with author_id of: ", author_id);
     let query = getSupabaseClientWithToken(token)
         .from("collections")
         .update({ items: updatedItems })
         .eq("category", category);
     if (author_id !== null && author_id !== undefined) {
-        query = query.eq("author_public_id", author_id);
+        // Use .or() to match either author_public_id or collaborators contains author_id
+        query = query.or(
+            `author_public_id.eq.${author_id},collaborators.cs.{${author_id}}`
+        );
     }
     return await query.select();
 };

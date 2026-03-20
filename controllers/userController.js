@@ -34,6 +34,35 @@ export const getUserProfileFromUsernameSlug = async (req, res) => {
     }
 };
 
+export const getUserSearchResults = async (req, res) => {
+    const { query } = req.params;
+
+    try {
+        // Use ilike for fuzzy search on username, email, and bio
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('username, email, username_slug, id')
+            .or(`username.ilike.%${query}%,email.ilike.%${query}%`);
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+        if (!data || data.length === 0) {
+            return res.status(404).json({ error: 'No users found' });
+        }
+
+        // Remove email from each user object and limit to 3 results
+        const sanitizedData = data.slice(0, 3).map(user => {
+            const { email, ...rest } = user;
+            return rest;
+        });
+        res.json(sanitizedData);
+    } catch (err) {
+        console.error('Error fetching users from query:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+}
+
 export const getUserProfile = async (req, res) => {
     const { uid } = req.params;
     try {
@@ -206,7 +235,7 @@ export const changeUsername = async (req, res) => {
 
 export const getUsernames = async (req, res) => {
     try {
-        const { data, error } = await supabase.from('profiles').select('username, bio, id, public_id, quizzes_completed,username_slug');
+        const { data, error } = await supabase.from('profiles').select('username, bio, id, public_id, quizzes_completed, username_slug');
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -281,6 +310,208 @@ export const completeQuiz = async (req, res) => {
         res.json(data);
     } catch (err) {
         console.error('Server error:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const getCollaborators = async (req, res) => {
+    const quiz_id = req.query.quiz_id || req.params.quiz_id;
+
+    if (!quiz_id) {
+        return res.status(400).json({ error: 'Quiz ID is required' });
+    }
+
+    try {
+        // 1. Get the collection collaborators array
+        const { data: collection, error: fetchError } = await supabase
+            .from('collections')
+            .select('collaborators')
+            .eq('id', quiz_id)
+            .single();
+
+        if (fetchError) {
+            console.error('Supabase error fetching collection:', fetchError);
+            return res.status(500).json({ error: fetchError.message });
+        }
+
+        if (!collection) {
+            return res.status(404).json({ error: 'Collection not found' });
+        }
+
+        const collaboratorIds = Array.isArray(collection.collaborators)
+            ? collection.collaborators
+            : [];
+
+        if (collaboratorIds.length === 0) {
+            return res.json({ success: true, data: [] });
+        }
+
+        // 2. Fetch collaborator profiles based on public_id
+        const { data: profiles, error: profileError } = await supabase
+            .from('profiles')
+            .select('id, username, username_slug, public_id')
+            .in('public_id', collaboratorIds);
+
+        if (profileError) {
+            console.error('Supabase error fetching profiles:', profileError);
+            return res.status(500).json({ error: profileError.message });
+        }
+
+        res.json({ success: true, data: profiles || [] });
+    } catch (err) {
+        console.error('Error getting collaborators:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const addCollaborator = async (req, res) => {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ error: 'No token provided' });
+
+    const supabase = getSupabaseClientWithToken(token);
+
+    const { quiz_id, collaborator_id } = req.body;
+
+    if (!quiz_id || !collaborator_id) {
+        return res.status(400).json({ error: 'Quiz ID and Collaborator ID are required' });
+    }
+
+    try {
+        const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('public_id')
+            .eq('id', collaborator_id)
+            .single();
+
+        if (profileError) {
+            return res.status(500).json({ error: profileError.message });
+        }
+        if (!profile) {
+            return res.status(404).json({ error: 'User profile not found' });
+        }
+
+        const publicId = profile.public_id;
+
+        const { data: collection, error: fetchError } = await supabase
+            .from('collections')
+            .select('id, collaborators')
+            .eq('id', quiz_id)
+            .single();
+
+        if (fetchError) {
+            return res.status(500).json({ error: fetchError.message });
+        }
+        if (!collection) {
+            return res.status(404).json({ error: 'Collection not found' });
+        }
+
+        let collaborators = collection.collaborators || [];
+        if (!Array.isArray(collaborators)) {
+            collaborators = [];
+        }
+
+        if (!collaborators.includes(publicId)) {
+            collaborators.push(publicId);
+        }
+
+        const { data, error: updateError } = await supabase
+            .from('collections')
+            .update({ collaborators })
+            .eq('id', quiz_id)
+            .select()
+            .single();
+
+        if (updateError) {
+            return res.status(500).json({ error: updateError.message });
+        }
+
+        res.json({
+            success: true,
+            message: 'Collaborator added successfully',
+            data
+        });
+
+    } catch (err) {
+        console.error('Error adding collaborator:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const removeCollaborator = async (req, res) => {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ error: 'No token provided' });
+
+    const supabase = getSupabaseClientWithToken(token);
+
+    const { quiz_id, collaborator_id } = req.body;
+
+    if (!quiz_id || !collaborator_id) {
+        return res.status(400).json({ error: 'Quiz ID and Collaborator ID are required' });
+    }
+
+    try {
+        // 1. Get the collaborator's public_id from profiles table
+        const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('public_id')
+            .eq('id', collaborator_id)
+            .single();
+
+        if (profileError) {
+            console.error('Error fetching profile:', profileError);
+            return res.status(500).json({ error: profileError.message });
+        }
+
+        if (!profile) {
+            return res.status(404).json({ error: 'User profile not found' });
+        }
+
+        const publicId = profile.public_id;
+
+        // 2. Get current collaborators
+        const { data: collection, error: fetchError } = await supabase
+            .from('collections')
+            .select('collaborators')
+            .eq('id', quiz_id)
+            .single();
+
+        if (fetchError) {
+            return res.status(500).json({ error: fetchError.message });
+        }
+
+        if (!collection) {
+            return res.status(404).json({ error: 'Collection not found' });
+        }
+
+        let collaborators = collection.collaborators || [];
+        if (!Array.isArray(collaborators)) {
+            collaborators = [];
+        }
+
+        // 3. Remove the collaborator by public_id
+        const updatedCollaborators = collaborators.filter(
+            id => id !== publicId
+        );
+
+        const { data, error: updateError } = await supabase
+            .from('collections')
+            .update({ collaborators: updatedCollaborators })
+            .eq('id', quiz_id)
+            .select()
+            .single();
+
+        if (updateError) {
+            return res.status(500).json({ error: updateError.message });
+        }
+
+        res.json({
+            success: true,
+            message: 'Collaborator removed successfully',
+            data
+        });
+
+    } catch (err) {
+        console.error('Error removing collaborator:', err);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };

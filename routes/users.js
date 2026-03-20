@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import verifySupabaseToken from '../middleware/supabaseAuth.js';
-import { uploadUserAvatar, getUserProfile, createUserProfile, getUserProfileFromUsernameSlug, changeUsername, getUsernames, completeQuiz, deleteQuizScore } from '../controllers/userController.js';
+import { uploadUserAvatar, getUserProfile, createUserProfile, getUserProfileFromUsernameSlug, changeUsername, getUsernames, completeQuiz, deleteQuizScore, getUserSearchResults, addCollaborator, removeCollaborator, getCollaborators } from '../controllers/userController.js';
 import { upload, UploadToSupabase } from '../middleware/multer.js';
 import { contentModeration } from '../middleware/contentModeration.js';
 
@@ -27,6 +27,10 @@ router.post('/completed-quiz', verifySupabaseToken, completeQuiz);
 router.get('/all', getUsernames);
 router.get('/:uid', getUserProfile);
 router.get('/username/:usernameSlug', getUserProfileFromUsernameSlug);
+router.get('/search/:query', getUserSearchResults);
+router.get('/collaborators/:quiz_id', getCollaborators)
+router.post('/addCollaborator', verifySupabaseToken, addCollaborator);
+router.delete('/removeCollaborator', verifySupabaseToken, removeCollaborator);
 
 router.delete('/delete-quiz-score', verifySupabaseToken, deleteQuizScore);
 
