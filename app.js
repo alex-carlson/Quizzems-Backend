@@ -10,12 +10,13 @@ validateR2Config();
 const allowedOrigins = [
     process.env.FRONTEND_URL || 'http://localhost:5173',
     'https://quizzems.com',
-    'https://freebeer.nyc',
     'https://www.quizzems.com',
+    'https://quizzems.vercel.app',
     'http://localhost:3000',
     'http://localhost:5174',
-    'https://quizzems.vercel.app',
-    'https://api.quizzems.com'
+    'https://freebeer.nyc',
+    'https://www.freebeer.nyc',
+    'https://api.quizzems.com',
 ];
 
 app.use(cors({

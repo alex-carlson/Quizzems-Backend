@@ -179,7 +179,11 @@ export const getDailyCollection = async (req, res) => {
     try {
         // Use the current day as a seed
         const today = new Date();
-        const seed = today.getUTCFullYear() + '-' + (today.getUTCMonth() + 1) + '-' + today.getUTCDate();
+        // Get today's date in EST (America/New_York)
+        const estDate = new Date(
+            new Date().toLocaleString("en-US", { timeZone: "America/New_York" })
+        );
+        const seed = estDate.getUTCFullYear() + '-' + (estDate.getUTCMonth() + 1) + '-' + estDate.getUTCDate();
 
         // Get all public collection IDs and created_at
         const { data: idData, error: idError } = await supabase
