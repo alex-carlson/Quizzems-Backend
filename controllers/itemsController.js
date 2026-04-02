@@ -26,7 +26,7 @@ const fetchCollection = async (token, category, author_id = null) => {
 
 // Helper: Update collection items by category and author_id (if provided)
 const updateCollectionItems = async (token, category, updatedItems, author_id = null) => {
-    console.log("Updating collection items with author_id of: ", author_id);
+
     let query = getSupabaseClientWithToken(token)
         .from("collections")
         .update({ items: updatedItems })
@@ -92,7 +92,6 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
 
     // Add uploaded image URL as src and image if it exists
     if (req.uploadedImageUrl) {
-        console.log("Got added image: ", req.uploadedImageUrl);
         myItem.src = req.uploadedImageUrl;
         myItem.image = req.uploadedImageUrl;
     }
@@ -150,7 +149,6 @@ export const AddThumbnailToCollection = async (req, res) => {
                     console.error("Error updating collection thumbnail:", error);
                     return res.status(500).json({ error: "Failed to update collection thumbnail", details: error });
                 }
-                console.log("Thumbnail updated successfully:", data);
                 return res.status(200).json({ message: "Thumbnail updated successfully", data });
             })
             .catch((err) => {
@@ -247,7 +245,6 @@ export const RemoveItemFromCollection = async (req, res) => {
                 const imageUrl = itemToDelete.src || itemToDelete.image;
                 const fileName = imageUrl.split('/').pop().split('?')[0]; // Remove query params
                 await deleteFromR2(fileName);
-                console.log(`Successfully deleted image from R2: ${fileName}`);
             } catch (deleteError) {
                 console.error("Error deleting image from R2 storage:", deleteError);
                 // Continue with item removal even if image deletion fails
@@ -276,8 +273,6 @@ export const EditItemInCollection = async (req, res) => {
         if (!collection) {
             return res.status(400).json({ error: "Missing required fields" });
         }
-
-        console.log("Editing item with data: ", req.body);
 
         // If isUpdate flag is present, use the addItemToCollectionHelper for updating
         if (isUpdate) {

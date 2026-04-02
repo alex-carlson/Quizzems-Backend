@@ -518,9 +518,6 @@ export const removeCollaborator = async (req, res) => {
 
 export const deleteQuizScore = async (req, res) => {
     const { user_id, quiz_id } = req.body;
-
-    console.log('Deleting quiz score for user:', user_id, 'quiz:', quiz_id);
-
     if (!user_id || !quiz_id) {
         return res.status(400).json({ error: 'User ID and Quiz ID are required' });
     }

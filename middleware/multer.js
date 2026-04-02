@@ -51,10 +51,10 @@ async function uploadToR2(buffer, fileName, contentType) {
         const endpoint = process.env.AWS_S3_PUBLIC_URL || process.env.AWS_S3_ENDPOINT;
         const publicUrl = `${endpoint.replace(/\/$/, "")}/${fileName}`;
 
-        console.log(`✅ Uploaded to Cloudflare R2: ${publicUrl}`);
+        console.log(`Uploaded to Cloudflare: ${publicUrl}`);
         return publicUrl;
     } catch (error) {
-        console.error('❌ R2 Upload Error:', {
+        console.error('R2 Upload Error:', {
             message: error.message,
             code: error.code,
             statusCode: error.$metadata?.httpStatusCode,
@@ -71,7 +71,6 @@ async function deleteFromR2(fileName) {
             Key: fileName,
         });
         await s3Client.send(command);
-        console.log(`✅ Deleted from Cloudflare R2: ${fileName}`);
         return true;
     } catch (error) {
         console.error(`❌ Failed to delete from R2: ${fileName}`, {
@@ -102,10 +101,6 @@ export const uploadUrlToSupabase = async (req, res, next) => {
 
             if (!token) return res.status(401).json({ message: "No token provided" });
             if (!fileUrl) return res.status(400).json({ message: "Please provide a file URL." });
-
-            console.log("🚀 Uploading to S3 from URL:", {
-                folder, uuid, bucket, fileUrl, fileName,
-            });
 
             // Fetch the image with proper headers to handle CORS and other issues
             const axiosConfig = {
@@ -147,7 +142,6 @@ export const uploadUrlToSupabase = async (req, res, next) => {
 
             // Convert to JPEG if requested
             if (forceJpeg === true || forceJpeg === "true") {
-                console.log("🔄 Converting URL image to JPEG");
                 fileBuffer = await sharp(fileBuffer)
                     .jpeg({ quality: 80 })
                     .toBuffer();
@@ -165,32 +159,23 @@ export const uploadUrlToSupabase = async (req, res, next) => {
             // Upload to Cloudflare R2
             try {
                 const publicURL = await uploadToR2(fileBuffer, finalFileName, contentType);
-                console.log("🚀 R2 Public URL:", publicURL);
                 req.uploadedImageUrl = publicURL;
 
                 // Convert GIF asynchronously if this is a GIF upload
                 if (finalFileName.toLowerCase().endsWith('.gif')) {
-                    console.log("🔄 Starting GIF conversion for URL upload:", finalFileName);
                     convertGifOnUpload(finalFileName, fileBuffer)
-                        .then(result => {
-                            if (result && !result.skipped) {
-                                console.log("✅ GIF conversion completed:", finalFileName);
-                            } else if (result && result.skipped) {
-                                console.log("ℹ️ GIF conversion skipped (files exist):", finalFileName);
-                            }
-                        })
                         .catch(error => {
-                            console.error("❌ GIF conversion failed:", finalFileName, error.message);
+                            console.error("GIF conversion failed:", finalFileName, error.message);
                         });
                 }
 
                 return next();
             } catch (error) {
-                console.error("❌ R2 Upload Error:", error);
+                console.error("R2 Upload Error:", error);
                 return res.status(400).json({ message: "Failed to upload to Cloudflare R2", details: error.message });
             }
         } catch (error) {
-            console.error("❌ Unexpected Error:", error);
+            console.error("Unexpected Error:", error);
 
             // Provide more specific error messages
             if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
@@ -258,12 +243,6 @@ export const UploadToSupabase = async (req, res, next) => {
         if (!token) return res.status(401).json({ message: "No token provided" });
         if (!file) return res.status(400).json({ message: "Please upload an image." });
 
-        console.log("🔄 Processing file:", {
-            folder, uuid, bucket,
-            file: file?.originalname || "No file",
-            forceJpeg: forceJpeg || false,
-        });
-
         if (!file.originalname) {
             file.originalname = `file-${Date.now()}`;
         }
@@ -271,7 +250,6 @@ export const UploadToSupabase = async (req, res, next) => {
         let fileExtension = file.originalname.split(".").pop().toLowerCase();
 
         if (forceJpeg === true || forceJpeg === "true") {
-            console.log("🔄 Converting uploaded file to JPEG");
             const jpgBuffer = await sharp(file.buffer)
                 .jpeg({ quality: 80 })
                 .toBuffer();
@@ -283,9 +261,6 @@ export const UploadToSupabase = async (req, res, next) => {
 
         const safeFolder = sanitizeName(folder || "uploads");
         const finalFileName = `${uuid}.${fileExtension}`;
-
-        console.log("Final file name:", finalFileName);
-        console.log("Safe folder name:", safeFolder);
 
 
         // Upload to Cloudflare R2

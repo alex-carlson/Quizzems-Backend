@@ -2,11 +2,9 @@
 import axios from "axios";
 
 export const contentModeration = async (req, res, next) => {
-    console.log("🚀 Content Moderation Middleware Triggered");
     try {
         // store req.uploadedImageUrl
         const uploadedImageUrl = req.uploadedImageUrl || req.body.uploadedImageUrl;
-        console.log("🚀 Uploaded Image URL:", uploadedImageUrl);
 
         if (!uploadedImageUrl) {
             return res.status(400).json({ message: "No image URL provided." });
@@ -54,8 +52,6 @@ const checkContent = async (imageUrl, filePath, res) => {
             result.offensive?.terrorist > certainty;
         const isGore = result.gore?.prob > certainty;
         const isSelfHarm = result["self-harm"]?.prob > certainty;
-
-        console.log("isNude: ", isNude, "isOffensive: ", isOffensive, "isGore: ", isGore, "isSelfHarm: ", isSelfHarm);
 
         const isSafe = !isNude && !isOffensive && !isGore && !isSelfHarm;
 
