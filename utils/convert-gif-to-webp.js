@@ -25,7 +25,7 @@ const r2 = new S3Client({
 
 const bucket = process.env.AWS_S3_BUCKET || "quizzems";
 const TMP = os.tmpdir();
-const CONCURRENCY = 4;
+const CONCURRENCY = 2;
 const limit = pLimit(CONCURRENCY);
 
 async function exists(key) {
@@ -99,30 +99,30 @@ async function convertGif(objKey) {
                 .save(mp4Path);
         });
 
-        // --- Convert GIF to animated WebP ---
-        await new Promise((resolve, reject) => {
-            ffmpeg(gifPath)
-                .inputOptions([
-                    "-f gif",
-                    "-analyzeduration 100M",
-                    "-probesize 100M"
-                ])
-                .outputOptions([
-                    "-vcodec libwebp",
-                    "-lossless 0",
-                    "-q:v 75",
-                    "-preset default",
-                    "-loop 0",
-                    "-an"
-                ])
-                .videoFilters("scale=trunc(iw/2)*2:trunc(ih/2)*2,fps=30")
-                .toFormat("webp")
-                .on("start", cmd => console.log("FFmpeg WebP command:", cmd))
-                .on("stderr", stderr => console.log(stderr))
-                .on("end", resolve)
-                .on("error", reject)
-                .save(webpPath);
-        });
+        // // --- Convert GIF to animated WebP ---
+        // await new Promise((resolve, reject) => {
+        //     ffmpeg(gifPath)
+        //         .inputOptions([
+        //             "-f gif",
+        //             "-analyzeduration 100M",
+        //             "-probesize 100M"
+        //         ])
+        //         .outputOptions([
+        //             "-vcodec libwebp",
+        //             "-lossless 0",
+        //             "-q:v 75",
+        //             "-preset default",
+        //             "-loop 0",
+        //             "-an"
+        //         ])
+        //         .videoFilters("scale=trunc(iw/2)*2:trunc(ih/2)*2,fps=30")
+        //         .toFormat("webp")
+        //         .on("start", cmd => console.log("FFmpeg WebP command:", cmd))
+        //         .on("stderr", stderr => console.log(stderr))
+        //         .on("end", resolve)
+        //         .on("error", reject)
+        //         .save(webpPath);
+        // });
 
         // Upload MP4
         await r2.send(new PutObjectCommand({
@@ -132,13 +132,13 @@ async function convertGif(objKey) {
             ContentType: "video/mp4"
         }));
 
-        // Upload WebP
-        await r2.send(new PutObjectCommand({
-            Bucket: bucket,
-            Key: webpKey,
-            Body: fs.readFileSync(webpPath),
-            ContentType: "image/webp"
-        }));
+        // // Upload WebP
+        // await r2.send(new PutObjectCommand({
+        //     Bucket: bucket,
+        //     Key: webpKey,
+        //     Body: fs.readFileSync(webpPath),
+        //     ContentType: "image/webp"
+        // }));
 
         console.log("Finished:", objKey);
 
