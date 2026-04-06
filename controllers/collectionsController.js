@@ -79,8 +79,12 @@ export const getPopularTags = async (req, res) => {
 
 export const getLatestCollections = async (req, res) => {
     try {
-        const max = req.limit || 12;
+        // Use query param for limit, fallback to 12
+        const max = parseInt(req.query.limit, 10) || 12;
+        // Only select fields needed for the client
         const selection = 'id, category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items_length, thumbnail_url';
+        // Suggestion: Ensure an index exists on created_at and private for best performance
+        // Query only public collections, order by created_at desc, limit results
         const { data, error } = await supabase
             .from('collections')
             .select(selection)
@@ -92,9 +96,12 @@ export const getLatestCollections = async (req, res) => {
             return res.status(500).json({ error: error.message });
         }
 
-        // Add thumbnails and persist thumbnail_url if needed
-        const collectionsWithThumbnails = await addThumbnailsToCollections(data || []);
-        res.json(collectionsWithThumbnails);
+        // Only add thumbnails if any are missing
+        let collectionsWithThumbnails = data;
+        if (data && data.some(col => !col.thumbnail_url)) {
+            collectionsWithThumbnails = await addThumbnailsToCollections(data);
+        }
+        res.json(collectionsWithThumbnails || []);
     } catch (err) {
         res.status(500).json({ error: 'Internal Server Error' });
     }
