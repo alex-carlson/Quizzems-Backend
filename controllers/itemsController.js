@@ -123,6 +123,22 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
     return data;
 };
 
+export const fetchRandomItems = async (count) => {
+    try {
+        // Call the RPC function on Supabase
+        const { data, error } = await supabase.rpc('get_random_cards', { p_count: count });
+
+        if (error) {
+            throw new Error(`Failed to fetch items: ${error.message}`);
+        }
+
+        // 'data' already contains <count> random cards
+        return data;
+    } catch (err) {
+        throw new Error(`Unexpected error fetching random items: ${err.message}`);
+    }
+};
+
 // add thumbnail to collection
 export const AddThumbnailToCollection = async (req, res) => {
     try {
@@ -179,6 +195,19 @@ export const AddItemToCollection = async (req, res) => {
         res.status(500).json({ error: "Internal Server Error", details: err.message });
     }
 };
+
+export const GetRandomItemsInCollection = async (req, res) => {
+    try {
+        const { count } = req.params;
+        console.log(req.params);
+        if (!count) return res.status(400).json({ error: "Missing required fields" });
+        const data = await fetchRandomItems(count);
+        res.status(201).json(data);
+    } catch (err) {
+        console.error("Unexpected Error: ", err);
+        res.status(500).json({ error: "Internal Server Error", details: err.message });
+    }
+}
 
 export const AddAudioToCollection = async (req, res) => {
     try {
