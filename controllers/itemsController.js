@@ -11,7 +11,7 @@ const fetchCollection = async (token, category, author_id = null) => {
 
     let query = supabase
         .from("collections")
-        .select("items")
+        .select("items,id")
         .eq("category", category);
 
     if (author_id !== null && author_id !== undefined) {
@@ -116,11 +116,42 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
         updatedItems = [...existingItems, myItem];
     }
 
-    const { data, error } = await updateCollectionItems(token, category, updatedItems, author_id);
+    const { data, error } = await updateCollectionItems(
+        token,
+        category,
+        updatedItems,
+        author_id
+    );
+
     if (error) {
         throw new Error(`Failed to update collection: ${error.message}`);
     }
+
+    try {
+        await appendCardFromItem(
+            token,
+            collection.id,
+            myItem
+        );
+    } catch (rpcErr) {
+        console.error("Card sync failed:", rpcErr);
+
+        throw rpcErr;
+    }
+
     return data;
+};
+
+const appendCardFromItem = async (token, collectionId, item) => {
+    const { error } = await getSupabaseClientWithToken(token)
+        .rpc("append_card_from_collection_item", {
+            p_collection_id: collectionId,
+            p_item: item
+        });
+
+    if (error) {
+        throw new Error(`Failed to sync card: ${error.message}`);
+    }
 };
 
 export const fetchRandomItems = async (count) => {
@@ -136,6 +167,30 @@ export const fetchRandomItems = async (count) => {
         return data;
     } catch (err) {
         throw new Error(`Unexpected error fetching random items: ${err.message}`);
+    }
+};
+
+export const fetchCollectionItems = async (collectionId) => {
+    try {
+        const { data, error } = await supabase
+            .from('cards')
+            .select(`
+        *,
+        collection:collections (
+          id,
+          private,
+          category
+        )
+      `)
+            .eq('collection', collectionId)
+            .eq('collection.private', false); // only public collections
+
+        if (error) throw error;
+
+        // Filter out any nulls just in case
+        return data || [];
+    } catch (err) {
+        throw new Error(`Unexpected error fetching collection items: ${err.message}`);
     }
 };
 
@@ -209,6 +264,18 @@ export const GetRandomItemsInCollection = async (req, res) => {
     }
 }
 
+export const GetItemsFromCollection = async (req, res) => {
+    try {
+        const { collectionId } = req.params;
+        if (!collectionId) return res.status(400).json({ error: "Missing required fields" });
+        const data = await fetchCollectionItems(collectionId);
+        res.status(201).json(data);
+    } catch (err) {
+        console.error("Unexpected Error: ", err);
+        res.status(500).json({ error: "Internal Server Error", details: err.message });
+    }
+}
+
 export const AddAudioToCollection = async (req, res) => {
     try {
         const { category, author, author_id, url } = req.body;
@@ -251,43 +318,72 @@ export const RemoveItemFromCollection = async (req, res) => {
     try {
         const { category, itemId } = req.body;
         const token = getToken(req);
+
         if (!token) {
             return res.status(401).json({ error: "No token provided" });
         }
+
         if (!category || !itemId) {
             return res.status(400).json({ error: "Missing required fields" });
         }
+
         const { data: collection, error: fetchError } = await fetchCollection(token, category);
+
         if (fetchError) {
             console.error("Error fetching collection:", fetchError);
             return res.status(500).json({ error: "Failed to fetch collection", details: fetchError });
         }
 
-        // Find the item to get its filename for deletion
+        // Find item
         const itemToDelete = collection.items.find(item => item.id === itemId);
         const updatedItems = collection.items.filter((i) => i.id !== itemId);
 
-        // Delete the image from Cloudflare R2 storage if item has an image
+        // -------------------------------
+        // 🧠 DELETE FROM CARDS TABLE
+        // -------------------------------
+        const supabase = getSupabaseClientWithToken(token);
+
+        const { error: cardDeleteError } = await supabase
+            .from("cards")
+            .delete()
+            .eq("id", itemId);
+
+        if (cardDeleteError) {
+            console.error("Error deleting card:", cardDeleteError);
+            return res.status(500).json({
+                error: "Failed to delete card",
+                details: cardDeleteError
+            });
+        }
+
+        // -------------------------------
+        // 🗑️ DELETE IMAGE FROM R2
+        // -------------------------------
         if (itemToDelete && (itemToDelete.src || itemToDelete.image)) {
             try {
-                // Extract filename from URL (assuming URL format: https://domain.com/filename)
                 const imageUrl = itemToDelete.src || itemToDelete.image;
-                const fileName = imageUrl.split('/').pop().split('?')[0]; // Remove query params
+                const fileName = imageUrl.split('/').pop().split('?')[0];
                 await deleteFromR2(fileName);
             } catch (deleteError) {
                 console.error("Error deleting image from R2 storage:", deleteError);
-                // Continue with item removal even if image deletion fails
             }
         }
+
+        // -------------------------------
+        // 💾 UPDATE COLLECTION
+        // -------------------------------
         const { data, error } = await updateCollectionItems(token, category, updatedItems);
+
         if (error) {
             console.error("Error updating collection:", error);
             return res.status(500).json({ error: "Failed to update collection", details: error });
         }
-        res.status(200).json({ items: updatedItems });
+
+        return res.status(200).json({ items: updatedItems });
+
     } catch (err) {
         console.error("Unexpected error:", err);
-        res.status(500).json({ error: "Internal Server Error", details: err.message });
+        return res.status(500).json({ error: "Internal Server Error", details: err.message });
     }
 };
 

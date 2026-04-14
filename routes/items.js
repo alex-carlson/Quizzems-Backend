@@ -7,7 +7,8 @@ import {
     AddAudioToCollection,
     AddQuestionToCollection,
     AddThumbnailToCollection,
-    GetRandomItemsInCollection
+    GetRandomItemsInCollection,
+    GetItemsFromCollection
 } from '../controllers/itemsController.js';
 import { upload, UploadToSupabase, uploadUrlToSupabase } from '../middleware/multer.js';
 import verifySupabaseToken from '../middleware/supabaseAuth.js';
@@ -17,6 +18,11 @@ const router = Router();
 router.get(
     '/random/:count',
     GetRandomItemsInCollection
+)
+
+router.get(
+    '/collection-items/:collectionId',
+    GetItemsFromCollection
 )
 
 router.post(
