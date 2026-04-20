@@ -54,15 +54,23 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
     // Parse JSON strings for array fields
     const parsedItemData = { ...itemData };
 
-    // Only parse answers if questionType requires it or answers field exists
-    if ((parsedItemData.answerType === 'multiplechoice' ||
-        parsedItemData.answerType === 'multipleanswer' ||
-        parsedItemData.answers) &&
-        typeof parsedItemData.answers === 'string') {
-        try {
-            parsedItemData.answers = JSON.parse(parsedItemData.answers);
-        } catch (e) {
-            console.warn('Failed to parse answers as JSON:', parsedItemData.answers);
+    // ALWAYS normalize answer to valid jsonb BEFORE DB insert
+    if (parsedItemData.answer !== undefined) {
+        if (Array.isArray(parsedItemData.answer)) {
+            parsedItemData.answer = parsedItemData.answer;
+        }
+        else if (parsedItemData.answer === null || parsedItemData.answer === '') {
+            parsedItemData.answer = [];
+        }
+        else if (typeof parsedItemData.answer === 'string') {
+            try {
+                // try JSON first
+                const parsed = JSON.parse(parsedItemData.answer);
+                parsedItemData.answer = parsed;
+            } catch {
+                // fallback: treat as single answer array (BEST PRACTICE)
+                parsedItemData.answer = [parsedItemData.answer];
+            }
         }
     }
 
@@ -87,8 +95,10 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
         type: itemFields.type || 'default',
         questionType: itemFields.questionType,
         answerType: itemFields.answerType,
-        ...itemFields // Spread additional fields
+        ...itemFields, // Spread additional fields
     };
+
+    myItem.answer = parsedItemData.answer;
 
     // Add uploaded image URL as src and image if it exists
     if (req.uploadedImageUrl) {
@@ -143,10 +153,15 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
 };
 
 const appendCardFromItem = async (token, collectionId, item) => {
+
+    const safeItem = structuredClone(item);
+
+    console.log(safeItem);
+
     const { error } = await getSupabaseClientWithToken(token)
         .rpc("append_card_from_collection_item", {
             p_collection_id: collectionId,
-            p_item: item
+            p_item: JSON.parse(JSON.stringify(safeItem))
         });
 
     if (error) {
