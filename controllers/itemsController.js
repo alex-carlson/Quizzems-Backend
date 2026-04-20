@@ -153,16 +153,69 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
 };
 
 const appendCardFromItem = async (token, collectionId, item) => {
-
     const safeItem = structuredClone(item);
+    const supabase = getSupabaseClientWithToken(token);
 
-    console.log(safeItem);
+    // Check if card with this id already exists
+    const { data: existingCard, error: fetchError } = await supabase
+        .from("cards")
+        .select("id")
+        .eq("id", safeItem.id)
+        .maybeSingle();
 
-    const { error } = await getSupabaseClientWithToken(token)
-        .rpc("append_card_from_collection_item", {
-            p_collection_id: collectionId,
-            p_item: JSON.parse(JSON.stringify(safeItem))
-        });
+    if (fetchError) {
+        throw new Error(`Failed to check card existence: ${fetchError.message}`);
+    }
+
+    let error;
+
+
+    // Map camelCase to snake_case for DB
+    if (safeItem.answerType !== undefined) {
+        safeItem.answer_type = safeItem.answerType;
+        delete safeItem.answerType;
+    }
+    if (safeItem.questionType !== undefined) {
+        safeItem.question_type = safeItem.questionType;
+        delete safeItem.questionType;
+    }
+
+    // If answer_type is multianswer or multiplechoice, use answers as answer
+    if ((safeItem.answer_type === 'multianswer' || safeItem.answer_type === 'multiplechoice') && Array.isArray(safeItem.answers)) {
+        safeItem.answer = safeItem.answers;
+    }
+
+    console.log("Adding " + JSON.stringify(safeItem))
+
+    if (existingCard) {
+        console.log("Updating existing card with ID:", safeItem.id);
+        // Only update fields that exist in the cards table
+        const allowedFields = [
+            "id", "url", "type", "extra", "answer", "author", "answer_type", "num_required", "question_type", "correct_answer_index", "audio", "supplemental", "question", "collection", "date_added"
+        ];
+        const updateFields = {};
+        for (const key of allowedFields) {
+            if (safeItem[key] !== undefined) updateFields[key] = safeItem[key];
+        }
+        console.log("Updating card with fields:", updateFields);
+        ({ error } = await supabase
+            .from("cards")
+            .update(updateFields)
+            .eq("id", safeItem.id)
+        );
+        if (error) {
+            console.error("Supabase card update error:", error, "Fields:", updateFields);
+        }
+    } else {
+        console.log("Inserting new card with ID:", safeItem.id);
+        // Card does not exist, insert via RPC
+        ({ error } = await supabase
+            .rpc("append_card_from_collection_item", {
+                p_collection_id: collectionId,
+                p_item: JSON.parse(JSON.stringify(safeItem))
+            })
+        );
+    }
 
     if (error) {
         throw new Error(`Failed to sync card: ${error.message}`);
