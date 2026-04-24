@@ -111,6 +111,7 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
     const existingItems = (collection && collection.items && Array.isArray(collection.items)) ? collection.items : [];
 
     if (shouldUpdate && existingItems.length > 0) {
+        
         const existingIndex = existingItems.findIndex(item => item.id === myItem.id);
         if (existingIndex !== -1) {
             // Update existing item
@@ -154,10 +155,11 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
 
 const appendCardFromItem = async (token, collectionId, item) => {
     const safeItem = structuredClone(item);
-    const supabase = getSupabaseClientWithToken(token);
+    // Always use a fresh client with the token
+    const supabaseWithToken = getSupabaseClientWithToken(token);
 
     // Check if card with this id already exists
-    const { data: existingCard, error: fetchError } = await supabase
+    const { data: existingCard, error: fetchError } = await supabaseWithToken
         .from("cards")
         .select("id")
         .eq("id", safeItem.id)
@@ -168,7 +170,6 @@ const appendCardFromItem = async (token, collectionId, item) => {
     }
 
     let error;
-
 
     // Map camelCase to snake_case for DB
     if (safeItem.answerType !== undefined) {
@@ -185,31 +186,32 @@ const appendCardFromItem = async (token, collectionId, item) => {
         safeItem.answer = safeItem.answers;
     }
 
-    console.log("Adding " + JSON.stringify(safeItem))
-
     if (existingCard) {
-        console.log("Updating existing card with ID:", safeItem.id);
         // Only update fields that exist in the cards table
         const allowedFields = [
-            "id", "url", "type", "extra", "answer", "author", "answer_type", "num_required", "question_type", "correct_answer_index", "audio", "supplemental", "question", "collection", "date_added"
+            "url", "type", "extra", "answer", "answer_type", "num_required", "question_type", "correct_answer_index", "audio", "supplemental", "question", "collection"
         ];
-        const updateFields = {};
+        // Merge existingCard from DB with updateFields, prioritizing updateFields
+        const updateFields = { ...existingCard };
         for (const key of allowedFields) {
             if (safeItem[key] !== undefined) updateFields[key] = safeItem[key];
         }
-        console.log("Updating card with fields:", updateFields);
-        ({ error } = await supabase
+        console.log("Updating id:", safeItem.id);
+        console.log("Updating card with merged fields:", updateFields);
+        const { data: updatedData, error } = await supabaseWithToken
             .from("cards")
             .update(updateFields)
             .eq("id", safeItem.id)
-        );
+            .select();
         if (error) {
             console.error("Supabase card update error:", error, "Fields:", updateFields);
+        } else {
+            console.log("Updated card data returned:", updatedData);
         }
     } else {
         console.log("Inserting new card with ID:", safeItem.id);
         // Card does not exist, insert via RPC
-        ({ error } = await supabase
+        ({ error } = await supabaseWithToken
             .rpc("append_card_from_collection_item", {
                 p_collection_id: collectionId,
                 p_item: JSON.parse(JSON.stringify(safeItem))
