@@ -42,6 +42,8 @@ router.post('/remove', verifySupabaseToken, RemoveItemFromCollection);
 router.post('/edit', verifySupabaseToken, EditItemInCollection);
 router.post('/reorder', verifySupabaseToken, ReorderItemInCollection);
 
+router.delete('/delete', verifySupabaseToken, RemoveItemFromCollection);
+
 // Static route
 router.get('/', verifySupabaseToken, (req, res) => {
     res.json({ message: 'You are authenticated!' });
