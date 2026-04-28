@@ -181,7 +181,7 @@ const appendCardFromItem = async (token, collectionId, item) => {
     if (existingCard) {
         // Only update fields that exist in the cards table
         const allowedFields = [
-            "url", "type", "extra", "answer", "answer_type", "num_required", "question_type", "correct_answer_index", "audio", "supplemental", "question", "collection"
+            "url", "type", "extra", "answer", "answer_type", "num_required", "question_type", "correct_answer_index", "audio", "supplemental", "question", "collection", "yt_title"
         ];
         // Merge existingCard from DB with updateFields, prioritizing updateFields
         const updateFields = { ...existingCard };
