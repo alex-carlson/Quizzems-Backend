@@ -335,6 +335,69 @@ export const GetItemsFromCollection = async (req, res) => {
     }
 }
 
+export const GetCollectionCount = async (req, res) => {
+    try {
+        const { count, error } = await supabase
+            .from('collections')
+            .select('*', { count: 'exact', head: true })
+            .eq('private', false);
+
+        if (error) {
+            return res.status(400).json({
+                error: "Failed to fetch collection count",
+                details: error.message,
+            });
+        }
+
+        return res.status(200).json({
+            count: count ?? 0,
+        });
+
+    } catch (err) {
+        console.error("Unexpected Error: ", err);
+        res.status(500).json({
+            error: "Internal Server Error",
+            details: err.message,
+        });
+    }
+};
+
+export const GetCardCount = async (req, res) => {
+    try {
+        const { count, error } = await supabase
+            .from('cards')
+            .select(
+                `
+                *,
+                collections!inner (
+                    id,
+                    private
+                )
+            `,
+                { count: 'exact', head: true }
+            )
+            .eq('collections.private', false);
+
+        if (error) {
+            return res.status(400).json({
+                error: "Failed to fetch card count",
+                details: error.message,
+            });
+        }
+
+        return res.status(200).json({
+            count: count ?? 0,
+        });
+
+    } catch (err) {
+        console.error("Unexpected Error: ", err);
+        res.status(500).json({
+            error: "Internal Server Error",
+            details: err.message,
+        });
+    }
+};
+
 export const AddAudioToCollection = async (req, res) => {
     try {
         const { category, author, author_id, url } = req.body;
