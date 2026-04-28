@@ -51,10 +51,8 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
         throw new Error("Collection not found or access denied");
     }
 
-    // Parse JSON strings for array fields
     const parsedItemData = { ...itemData };
 
-    // ALWAYS normalize answer to valid jsonb BEFORE DB insert
     if (parsedItemData.answer !== undefined) {
         if (Array.isArray(parsedItemData.answer)) {
             parsedItemData.answer = parsedItemData.answer;
@@ -64,11 +62,9 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
         }
         else if (typeof parsedItemData.answer === 'string') {
             try {
-                // try JSON first
                 const parsed = JSON.parse(parsedItemData.answer);
                 parsedItemData.answer = parsed;
             } catch {
-                // fallback: treat as single answer array (BEST PRACTICE)
                 parsedItemData.answer = [parsedItemData.answer];
             }
         }
@@ -77,11 +73,9 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
     // Remove metadata fields that shouldn't be part of the item
     const { folder, category: categoryField, isUpdate, author_id: authorIdField, forceJpeg, collection: collectionField, author_uuid, ...itemFields } = parsedItemData;
 
-    // Validate required fields - be more lenient for image uploads via URL
     if (!itemFields.questionType && !itemFields.answerType) {
-        // If neither is provided, this might be a legacy URL upload, provide defaults
         itemFields.questionType = 'image';
-        itemFields.answerType = 'text';
+        itemFields.answerType = 'single';
     } else if (!itemFields.questionType || !itemFields.answerType) {
         // If only one is provided, require both
         throw new Error("Missing required fields: questionType and answerType are required");
@@ -111,7 +105,7 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
     const existingItems = (collection && collection.items && Array.isArray(collection.items)) ? collection.items : [];
 
     if (shouldUpdate && existingItems.length > 0) {
-        
+
         const existingIndex = existingItems.findIndex(item => item.id === myItem.id);
         if (existingIndex !== -1) {
             // Update existing item
@@ -171,7 +165,6 @@ const appendCardFromItem = async (token, collectionId, item) => {
 
     let error;
 
-    // Map camelCase to snake_case for DB
     if (safeItem.answerType !== undefined) {
         safeItem.answer_type = safeItem.answerType;
         delete safeItem.answerType;
@@ -181,7 +174,6 @@ const appendCardFromItem = async (token, collectionId, item) => {
         delete safeItem.questionType;
     }
 
-    // If answer_type is multianswer or multiplechoice, use answers as answer
     if ((safeItem.answer_type === 'multianswer' || safeItem.answer_type === 'multiplechoice') && Array.isArray(safeItem.answers)) {
         safeItem.answer = safeItem.answers;
     }
@@ -196,8 +188,7 @@ const appendCardFromItem = async (token, collectionId, item) => {
         for (const key of allowedFields) {
             if (safeItem[key] !== undefined) updateFields[key] = safeItem[key];
         }
-        console.log("Updating id:", safeItem.id);
-        console.log("Updating card with merged fields:", updateFields);
+
         const { data: updatedData, error } = await supabaseWithToken
             .from("cards")
             .update(updateFields)
@@ -209,8 +200,6 @@ const appendCardFromItem = async (token, collectionId, item) => {
             console.log("Updated card data returned:", updatedData);
         }
     } else {
-        console.log("Inserting new card with ID:", safeItem.id);
-        // Card does not exist, insert via RPC
         ({ error } = await supabaseWithToken
             .rpc("append_card_from_collection_item", {
                 p_collection_id: collectionId,
