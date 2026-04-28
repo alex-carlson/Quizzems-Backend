@@ -98,6 +98,7 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
     if (req.uploadedImageUrl) {
         myItem.src = req.uploadedImageUrl;
         myItem.image = req.uploadedImageUrl;
+        myItem.url = req.uploadedImageUrl;
     }
 
     let updatedItems;
