@@ -231,19 +231,20 @@ export const fetchRandomItems = async (count) => {
 };
 
 export const fetchCollectionItems = async (collectionId) => {
+
     try {
         const { data, error } = await supabase
             .from('cards')
             .select(`
         *,
-        collection:collections (
+        collection:collections!inner (
           id,
           private,
           category
         )
       `)
             .eq('collection', collectionId)
-            .eq('collection.private', false); // only public collections
+            .eq('collections.private', false); // only public collections
 
         if (error) throw error;
 
