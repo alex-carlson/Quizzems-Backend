@@ -8,7 +8,9 @@ import {
     AddQuestionToCollection,
     AddThumbnailToCollection,
     GetRandomItemsInCollection,
-    GetItemsFromCollection
+    GetItemsFromCollection,
+    GetCollectionCount,
+    GetCardCount
 } from '../controllers/itemsController.js';
 import { upload, UploadToSupabase, uploadUrlToSupabase } from '../middleware/multer.js';
 import verifySupabaseToken from '../middleware/supabaseAuth.js';
@@ -24,6 +26,9 @@ router.get(
     '/collection-items/:collectionId',
     GetItemsFromCollection
 )
+
+router.get('/collectionCount', GetCollectionCount)
+router.get('/cardCount', GetCardCount)
 
 router.post(
     '/upload',
@@ -41,6 +46,8 @@ router.post('/add-thumbnail', verifySupabaseToken, upload.single('file'), Upload
 router.post('/remove', verifySupabaseToken, RemoveItemFromCollection);
 router.post('/edit', verifySupabaseToken, EditItemInCollection);
 router.post('/reorder', verifySupabaseToken, ReorderItemInCollection);
+
+router.delete('/delete', verifySupabaseToken, RemoveItemFromCollection);
 
 // Static route
 router.get('/', verifySupabaseToken, (req, res) => {

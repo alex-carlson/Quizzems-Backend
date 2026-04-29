@@ -51,29 +51,31 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
         throw new Error("Collection not found or access denied");
     }
 
-    // Parse JSON strings for array fields
     const parsedItemData = { ...itemData };
 
-    // Only parse answers if questionType requires it or answers field exists
-    if ((parsedItemData.answerType === 'multiplechoice' ||
-        parsedItemData.answerType === 'multipleanswer' ||
-        parsedItemData.answers) &&
-        typeof parsedItemData.answers === 'string') {
-        try {
-            parsedItemData.answers = JSON.parse(parsedItemData.answers);
-        } catch (e) {
-            console.warn('Failed to parse answers as JSON:', parsedItemData.answers);
+    if (parsedItemData.answer !== undefined) {
+        if (Array.isArray(parsedItemData.answer)) {
+            parsedItemData.answer = parsedItemData.answer;
+        }
+        else if (parsedItemData.answer === null || parsedItemData.answer === '') {
+            parsedItemData.answer = [];
+        }
+        else if (typeof parsedItemData.answer === 'string') {
+            try {
+                const parsed = JSON.parse(parsedItemData.answer);
+                parsedItemData.answer = parsed;
+            } catch {
+                parsedItemData.answer = [parsedItemData.answer];
+            }
         }
     }
 
     // Remove metadata fields that shouldn't be part of the item
     const { folder, category: categoryField, isUpdate, author_id: authorIdField, forceJpeg, collection: collectionField, author_uuid, ...itemFields } = parsedItemData;
 
-    // Validate required fields - be more lenient for image uploads via URL
     if (!itemFields.questionType && !itemFields.answerType) {
-        // If neither is provided, this might be a legacy URL upload, provide defaults
         itemFields.questionType = 'image';
-        itemFields.answerType = 'text';
+        itemFields.answerType = 'single';
     } else if (!itemFields.questionType || !itemFields.answerType) {
         // If only one is provided, require both
         throw new Error("Missing required fields: questionType and answerType are required");
@@ -87,13 +89,16 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
         type: itemFields.type || 'default',
         questionType: itemFields.questionType,
         answerType: itemFields.answerType,
-        ...itemFields // Spread additional fields
+        ...itemFields, // Spread additional fields
     };
+
+    myItem.answer = parsedItemData.answer;
 
     // Add uploaded image URL as src and image if it exists
     if (req.uploadedImageUrl) {
         myItem.src = req.uploadedImageUrl;
         myItem.image = req.uploadedImageUrl;
+        myItem.url = req.uploadedImageUrl;
     }
 
     let updatedItems;
@@ -101,6 +106,7 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
     const existingItems = (collection && collection.items && Array.isArray(collection.items)) ? collection.items : [];
 
     if (shouldUpdate && existingItems.length > 0) {
+
         const existingIndex = existingItems.findIndex(item => item.id === myItem.id);
         if (existingIndex !== -1) {
             // Update existing item
@@ -143,11 +149,65 @@ const addItemToCollectionHelper = async (req, token, category, author_id, itemDa
 };
 
 const appendCardFromItem = async (token, collectionId, item) => {
-    const { error } = await getSupabaseClientWithToken(token)
-        .rpc("append_card_from_collection_item", {
-            p_collection_id: collectionId,
-            p_item: item
-        });
+    const safeItem = structuredClone(item);
+    // Always use a fresh client with the token
+    const supabaseWithToken = getSupabaseClientWithToken(token);
+
+    // Check if card with this id already exists
+    const { data: existingCard, error: fetchError } = await supabaseWithToken
+        .from("cards")
+        .select("id")
+        .eq("id", safeItem.id)
+        .maybeSingle();
+
+    if (fetchError) {
+        throw new Error(`Failed to check card existence: ${fetchError.message}`);
+    }
+
+    let error;
+
+    if (safeItem.answerType !== undefined) {
+        safeItem.answer_type = safeItem.answerType;
+        delete safeItem.answerType;
+    }
+    if (safeItem.questionType !== undefined) {
+        safeItem.question_type = safeItem.questionType;
+        delete safeItem.questionType;
+    }
+
+    if ((safeItem.answer_type === 'multianswer' || safeItem.answer_type === 'multiplechoice') && Array.isArray(safeItem.answers)) {
+        safeItem.answer = safeItem.answers;
+    }
+
+    if (existingCard) {
+        // Only update fields that exist in the cards table
+        const allowedFields = [
+            "url", "type", "extra", "answer", "answer_type", "num_required", "question_type", "correct_answer_index", "audio", "supplemental", "question", "collection", "yt_title"
+        ];
+        // Merge existingCard from DB with updateFields, prioritizing updateFields
+        const updateFields = { ...existingCard };
+        for (const key of allowedFields) {
+            if (safeItem[key] !== undefined) updateFields[key] = safeItem[key];
+        }
+
+        const { data: updatedData, error } = await supabaseWithToken
+            .from("cards")
+            .update(updateFields)
+            .eq("id", safeItem.id)
+            .select();
+        if (error) {
+            console.error("Supabase card update error:", error, "Fields:", updateFields);
+        } else {
+            console.log("Updated card data returned:", updatedData);
+        }
+    } else {
+        ({ error } = await supabaseWithToken
+            .rpc("append_card_from_collection_item", {
+                p_collection_id: collectionId,
+                p_item: JSON.parse(JSON.stringify(safeItem))
+            })
+        );
+    }
 
     if (error) {
         throw new Error(`Failed to sync card: ${error.message}`);
@@ -275,6 +335,69 @@ export const GetItemsFromCollection = async (req, res) => {
         res.status(500).json({ error: "Internal Server Error", details: err.message });
     }
 }
+
+export const GetCollectionCount = async (req, res) => {
+    try {
+        const { count, error } = await supabase
+            .from('collections')
+            .select('*', { count: 'exact', head: true })
+            .eq('private', false);
+
+        if (error) {
+            return res.status(400).json({
+                error: "Failed to fetch collection count",
+                details: error.message,
+            });
+        }
+
+        return res.status(200).json({
+            count: count ?? 0,
+        });
+
+    } catch (err) {
+        console.error("Unexpected Error: ", err);
+        res.status(500).json({
+            error: "Internal Server Error",
+            details: err.message,
+        });
+    }
+};
+
+export const GetCardCount = async (req, res) => {
+    try {
+        const { count, error } = await supabase
+            .from('cards')
+            .select(
+                `
+                *,
+                collections!inner (
+                    id,
+                    private
+                )
+            `,
+                { count: 'exact', head: true }
+            )
+            .eq('collections.private', false);
+
+        if (error) {
+            return res.status(400).json({
+                error: "Failed to fetch card count",
+                details: error.message,
+            });
+        }
+
+        return res.status(200).json({
+            count: count ?? 0,
+        });
+
+    } catch (err) {
+        console.error("Unexpected Error: ", err);
+        res.status(500).json({
+            error: "Internal Server Error",
+            details: err.message,
+        });
+    }
+};
 
 export const AddAudioToCollection = async (req, res) => {
     try {
