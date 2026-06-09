@@ -550,6 +550,8 @@ export const EditItemInCollection = async (req, res) => {
             return res.status(400).json({ error: "answerType is required" });
         }
 
+        console.log('updating!');
+
         const { data, error } = await fetchCollection(token, collection, author_id);
         if (error) {
             console.error("Error fetching collection:", error);
