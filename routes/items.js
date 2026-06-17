@@ -17,10 +17,15 @@ import verifySupabaseToken from '../middleware/supabaseAuth.js';
 
 const router = Router();
 
-router.get(
-    '/random/:count',
-    GetRandomItemsInCollection
-)
+router.get('/random/:count', (req, res, next) => {
+    const { types } = req.query;
+    req.query.types = Array.isArray(types)
+        ? types
+        : typeof types === 'string'
+        ? types.split(',')
+        : ['image', 'audio', 'question'];
+    return GetRandomItemsInCollection(req, res, next);
+});
 
 router.get(
     '/collection-items/:collectionId',

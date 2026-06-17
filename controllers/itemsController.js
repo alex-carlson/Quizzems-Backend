@@ -214,10 +214,10 @@ const appendCardFromItem = async (token, collectionId, item) => {
     }
 };
 
-export const fetchRandomItems = async (count) => {
+export const fetchRandomItems = async (count, types) => {
     try {
         // Call the RPC function on Supabase
-        const { data, error } = await supabase.rpc('get_random_cards', { p_count: count });
+        const { data, error } = await supabase.rpc('get_random_cards', { p_count: count, p_types: types });
 
         if (error) {
             throw new Error(`Failed to fetch items: ${error.message}`);
@@ -315,9 +315,10 @@ export const AddItemToCollection = async (req, res) => {
 export const GetRandomItemsInCollection = async (req, res) => {
     try {
         const { count } = req.params;
-        console.log(req.params);
+        const { types } = req.query;
+        console.log(req.query);
         if (!count) return res.status(400).json({ error: "Missing required fields" });
-        const data = await fetchRandomItems(count);
+        const data = await fetchRandomItems(count, types);
         res.status(201).json(data);
     } catch (err) {
         console.error("Unexpected Error: ", err);
