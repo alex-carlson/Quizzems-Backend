@@ -230,29 +230,22 @@ export const fetchRandomItems = async (count, types) => {
     }
 };
 
-export const fetchCollectionItems = async (collectionId) => {
+export const fetchCollectionItems = async (collectionId, isOwner) => {
+  const query = supabase
+    .from('cards')
+    .select('*')
+    .eq('collection', collectionId);
 
-    try {
-        const { data, error } = await supabase
-            .from('cards')
-            .select(`
-        *,
-        collection:collections!inner (
-          id,
-          private,
-          category
-        )
-      `)
-            .eq('collection', collectionId)
-            .eq('collections.private', false); // only public collections
+  if (!isOwner) {
+    // optional safety gate (only if needed)
+    query.is('id', 'not.null');
+  }
 
-        if (error) throw error;
+  const { data, error } = await query;
 
-        // Filter out any nulls just in case
-        return data || [];
-    } catch (err) {
-        throw new Error(`Unexpected error fetching collection items: ${err.message}`);
-    }
+  if (error) throw error;
+
+  return data || [];
 };
 
 // add thumbnail to collection
@@ -330,7 +323,7 @@ export const GetItemsFromCollection = async (req, res) => {
     try {
         const { collectionId } = req.params;
         if (!collectionId) return res.status(400).json({ error: "Missing required fields" });
-        const data = await fetchCollectionItems(collectionId);
+        const data = await fetchCollectionItems(collectionId, true);
         res.status(201).json(data);
     } catch (err) {
         console.error("Unexpected Error: ", err);
