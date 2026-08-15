@@ -6,12 +6,34 @@ import {
     getCollectionThumbnailFast
 } from '../utils/collectionHelpers.js';
 
+const COLLECTION_SELECT =
+`
+id,
+category,
+author_uuid,
+profiles(username, public_id, username_slug),
+slug,
+created_at,
+items_length,
+tags,
+thumbnail_url
+`;
+
+const COLLECTION_SELECT_WITH_STATS = `
+${COLLECTION_SELECT},
+times_played
+`;
+
+const COLLECTION_SELECT_FULL = `
+*,
+profiles(username, public_id, username_slug)
+`;
+
 export const getAllCollections = async (req, res) => {
     try {
-        const selection = 'category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items_length, tags, thumbnail_url';
         const { data, error } = await supabase
             .from('collections')
-            .select(selection)
+            .select(COLLECTION_SELECT)
             .eq('private', false);
 
         if (error) {
@@ -79,15 +101,12 @@ export const getPopularTags = async (req, res) => {
 
 export const getLatestCollections = async (req, res) => {
     try {
-        // Use query param for limit, fallback to 12
+
         const max = parseInt(req.query.limit, 10) || 12;
-        // Only select fields needed for the client
-        const selection = 'id, category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items_length, thumbnail_url';
-        // Suggestion: Ensure an index exists on created_at and private for best performance
-        // Query only public collections, order by created_at desc, limit results
+        
         const { data, error } = await supabase
             .from('collections')
-            .select(selection)
+            .select(COLLECTION_SELECT)
             .eq('private', false)
             .order('created_at', { ascending: false })
             .limit(max);
@@ -110,10 +129,9 @@ export const getLatestCollections = async (req, res) => {
 export const getMostPopularCollections = async (req, res) => {
     try {
         const max = req.limit || 12;
-        const selection = 'id, category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items_length, times_played, tags, thumbnail_url';
         const { data, error } = await supabase
             .from('collections')
-            .select(selection)
+            .select(COLLECTION_SELECT_WITH_STATS)
             .eq('private', false)
             .order('times_played', { ascending: false, nullsFirst: false })
             .limit(max);
@@ -132,10 +150,10 @@ export const getMostPopularCollections = async (req, res) => {
 export const getLatestCollectionsWithThumbnails = async (req, res) => {
     try {
         const max = req.params.limit || 12;
-        const selection = 'id, category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items_length, tags, thumbnail_url';
+
         const { data, error } = await supabase
             .from('collections')
-            .select(selection)
+            .select(COLLECTION_SELECT)
             .eq('private', false)
             .order('created_at', { ascending: false })
             .limit(max);
@@ -162,10 +180,10 @@ export const getRandomCollections = async (req, res) => {
         if (!max || isNaN(max) || max <= 0) {
             max = 10;
         }
-        const selection = 'id, category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items_length, tags, thumbnail_url';
+
         const { data, error } = await supabase
             .from('collections')
-            .select(selection)
+            .select(COLLECTION_SELECT)
             .eq('private', false);
 
         if (error) {
@@ -229,10 +247,77 @@ export const getDailyCollection = async (req, res) => {
         }
 
         // Fetch the chosen collection by ID
-        const selection = 'id, category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items_length, tags, thumbnail_url';
+
         const { data, error } = await supabase
             .from('collections')
-            .select(selection)
+            .select(COLLECTION_SELECT)
+            .eq('id', chosenId)
+            .eq('private', false);
+
+        if (error || !data || !data.length) {
+            return res.status(404).json({ error: 'No collections found' });
+        }
+
+        // Add thumbnail and persist thumbnail_url if needed
+        const [collectionWithThumbnail] = await addThumbnailsToCollections([data[0]]);
+        res.json(collectionWithThumbnail);
+    } catch (err) {
+        console.error('Error in getDailyCollection:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const getWeeklyCategory = async (req, res) => {
+    try {
+    // Use the current day as a seed
+        const today = new Date();
+        // Get today's date in EST (America/New_York)
+        const estDate = new Date(
+            new Date().toLocaleString("en-US", { timeZone: "America/New_York" })
+        );
+        const seed = estDate.getUTCFullYear() + '-' + (estDate.getUTCMonth() + 1) + '-' + estDate.getUTCDate();
+
+        // Get all public collection IDs and created_at
+        const { data: idData, error: idError } = await supabase
+            .from('collections')
+            .select('id, created_at')
+            .eq('private', false);
+        if (idError) {
+            return res.status(500).json({ error: idError.message });
+        }
+        if (!idData || idData.length === 0) {
+            return res.status(404).json({ error: 'No collections found' });
+        }
+
+        // Sort by id for absolute stability
+        idData.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+
+        // Hash function: FNV-1a 32bit
+        function hash(str) {
+            let h = 2166136261 >>> 0;
+            for (let i = 0; i < str.length; i++) {
+                h ^= str.charCodeAt(i);
+                h = Math.imul(h, 16777619);
+            }
+            return h >>> 0;
+        }
+
+        // Pick the collection with the highest hash(seed+id)
+        let maxHash = -1;
+        let chosenId = idData[0].id;
+        for (const col of idData) {
+            const h = hash(seed + ':' + col.id);
+            if (h > maxHash) {
+                maxHash = h;
+                chosenId = col.id;
+            }
+        }
+
+        // Fetch the chosen collection by ID
+
+        const { data, error } = await supabase
+            .from('collections')
+            .select(COLLECTION_SELECT)
             .eq('id', chosenId)
             .eq('private', false);
 
@@ -284,13 +369,11 @@ export const getPaginatedCollections = async (req, res) => {
             return res.status(500).json({ error: countError.message });
         }
 
-        const selection = 'id, category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items_length, tags, thumbnail_url, times_played';
-
         if (filter) {
             // If filtering is needed, get all data first, then filter and paginate
             const { data: allData, error } = await supabase
                 .from('collections')
-                .select(selection)
+                .select(COLLECTION_SELECT_WITH_STATS)
                 .eq('private', false);
 
             if (error) {
@@ -359,7 +442,7 @@ export const getPaginatedCollections = async (req, res) => {
             // No filtering needed, use efficient database sorting
             let { data, error } = await supabase
                 .from('collections')
-                .select(selection)
+                .select(COLLECTION_SELECT_WITH_STATS)
                 .eq('private', false)
                 .order(sortColumn, { ascending })
                 .range(offset, offset + limitNum - 1);
@@ -393,12 +476,11 @@ export const searchCollections = async (req, res) => {
     try {
         const { searchTerm } = req.query;
 
-        const selection = 'id, category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items_length, tags, thumbnail_url, last_modified';
 
         // Step 1: Get matching results with thumbnails
         const { data: matchingData, error: matchingError } = await supabase
             .from('collections')
-            .select(selection)
+            .select(COLLECTION_SELECT_WITH_STATS)
             .eq('private', false)
             .or(`category.ilike.%${searchTerm}%,tags.ilike.%${searchTerm}%`);
 
@@ -418,7 +500,7 @@ export const searchCollections = async (req, res) => {
 
         const { data, error } = await supabase
             .from('collections')
-            .select(selection)
+            .select(COLLECTION_SELECT_WITH_STATS)
             .eq('private', false)
             .not('id', 'in', `(${excludeIds.join(',')})`)
             .limit(10 - matching.length);
@@ -443,11 +525,10 @@ export const getCollectionsByTag = async (req, res) => {
             return res.status(400).json({ error: 'Tag parameter is required' });
         }
         const searchTag = tag.trim().toLowerCase();
-        const selection = 'id, category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items_length, tags, thumbnail_url';
         // Fetch collections where tags ilike the tag (broad match)
         const { data, error } = await supabase
             .from('collections')
-            .select(selection)
+            .select(COLLECTION_SELECT)
             .eq('private', false)
             .ilike('tags', `%${searchTag}%`);
         if (error) {
@@ -663,12 +744,10 @@ export const getUserCollections = async (req, res) => {
             return res.status(401).json({ error: 'No token provided' });
         }
 
-        const selection = 'category, author_uuid, profiles(username, public_id, username_slug), slug, created_at, items_length, private, tags, id, thumbnail_url, collaborators';
-
         // Get collections where author_public_id = uid OR collaborators contains uid
         const { data, error } = await getSupabaseClientWithToken(token)
             .from('collections')
-            .select(selection)
+            .select(COLLECTION_SELECT)
             .or(`author_public_id.eq."${uid}",collaborators.cs.{"${uid}"}`)
 
         if (error) {
