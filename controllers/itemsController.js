@@ -231,21 +231,21 @@ export const fetchRandomItems = async (count, types) => {
 };
 
 export const fetchCollectionItems = async (collectionId, isOwner) => {
-  const query = supabase
-    .from('cards')
-    .select('*')
-    .eq('collection', collectionId);
+    const query = supabase
+        .from('cards')
+        .select('*')
+        .eq('collection', collectionId);
 
-  if (!isOwner) {
-    // optional safety gate (only if needed)
-    query.is('id', 'not.null');
-  }
+    if (!isOwner) {
+        // optional safety gate (only if needed)
+        query.is('id', 'not.null');
+    }
 
-  const { data, error } = await query;
+    const { data, error } = await query;
 
-  if (error) throw error;
+    if (error) throw error;
 
-  return data || [];
+    return data || [];
 };
 
 // add thumbnail to collection
@@ -437,15 +437,34 @@ export const RemoveItemFromCollection = async (req, res) => {
         const { category, itemId, author_id } = req.body;
         const token = getToken(req);
 
+        console.log('[RemoveItemFromCollection] request start', {
+            category,
+            itemId,
+            author_id,
+            headersAuth: !!req.headers.authorization,
+            user: req.user ? { id: req.user.id, email: req.user.email } : null
+        });
+
         if (!token) {
+            console.log('[RemoveItemFromCollection] missing token');
             return res.status(401).json({ error: "No token provided" });
         }
 
         if (!category || !itemId) {
+            console.log('[RemoveItemFromCollection] missing required fields', { category, itemId });
             return res.status(400).json({ error: "Missing required fields" });
         }
 
         const { data: collection, error: fetchError } = await fetchCollection(token, category, author_id ?? null);
+
+        console.log('[RemoveItemFromCollection] collection lookup result', {
+            author_id,
+            collectionFound: !!collection,
+            collectionId: collection?.id || null,
+            collectionAuthorPublicId: collection?.author_public_id || null,
+            collaboratorCount: Array.isArray(collection?.collaborators) ? collection.collaborators.length : 0,
+            fetchError: fetchError ? { message: fetchError.message, details: fetchError } : null
+        });
 
         if (fetchError) {
             console.error("Error fetching collection:", fetchError);
@@ -453,6 +472,7 @@ export const RemoveItemFromCollection = async (req, res) => {
         }
 
         if (!collection) {
+            console.log('[RemoveItemFromCollection] access denied for collection', { category, author_id });
             return res.status(403).json({ error: "Collection not found or access denied" });
         }
 
@@ -462,11 +482,20 @@ export const RemoveItemFromCollection = async (req, res) => {
         const itemToDelete = existingItems.find(item => item.id === itemId);
         const updatedItems = existingItems.filter((i) => i.id !== itemId);
 
+        console.log('[RemoveItemFromCollection] item match', {
+            itemId,
+            foundItem: !!itemToDelete,
+            itemTitle: itemToDelete?.question || itemToDelete?.title || null,
+            beforeCount: existingItems.length,
+            afterCount: updatedItems.length
+        });
+
         // -------------------------------
         // 🧠 DELETE FROM CARDS TABLE
         // -------------------------------
         const supabase = getSupabaseClientWithToken(token);
 
+        console.log('[RemoveItemFromCollection] deleting card row', { itemId });
         const { error: cardDeleteError } = await supabase
             .from("cards")
             .delete()
@@ -487,6 +516,7 @@ export const RemoveItemFromCollection = async (req, res) => {
             try {
                 const imageUrl = itemToDelete.src || itemToDelete.image;
                 const fileName = imageUrl.split('/').pop().split('?')[0];
+                console.log('[RemoveItemFromCollection] deleting image from R2', { imageUrl, fileName });
                 await deleteFromR2(fileName);
             } catch (deleteError) {
                 console.error("Error deleting image from R2 storage:", deleteError);
@@ -496,12 +526,23 @@ export const RemoveItemFromCollection = async (req, res) => {
         // -------------------------------
         // 💾 UPDATE COLLECTION
         // -------------------------------
+        console.log('[RemoveItemFromCollection] updating collection items', {
+            category,
+            author_id,
+            newItemCount: updatedItems.length
+        });
         const { data, error } = await updateCollectionItems(token, category, updatedItems, author_id ?? null);
 
         if (error) {
             console.error("Error updating collection:", error);
             return res.status(500).json({ error: "Failed to update collection", details: error });
         }
+
+        console.log('[RemoveItemFromCollection] success', {
+            itemId,
+            finalItemCount: updatedItems.length,
+            collectionId: collection.id
+        });
 
         return res.status(200).json({ items: updatedItems });
 
