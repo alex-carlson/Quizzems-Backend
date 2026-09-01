@@ -434,7 +434,7 @@ export const AddQuestionToCollection = async (req, res) => {
 
 export const RemoveItemFromCollection = async (req, res) => {
     try {
-        const { category, itemId } = req.body;
+        const { category, itemId, author_id } = req.body;
         const token = getToken(req);
 
         if (!token) {
@@ -445,16 +445,22 @@ export const RemoveItemFromCollection = async (req, res) => {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
-        const { data: collection, error: fetchError } = await fetchCollection(token, category);
+        const { data: collection, error: fetchError } = await fetchCollection(token, category, author_id ?? null);
 
         if (fetchError) {
             console.error("Error fetching collection:", fetchError);
             return res.status(500).json({ error: "Failed to fetch collection", details: fetchError });
         }
 
+        if (!collection) {
+            return res.status(403).json({ error: "Collection not found or access denied" });
+        }
+
+        const existingItems = Array.isArray(collection.items) ? collection.items : [];
+
         // Find item
-        const itemToDelete = collection.items.find(item => item.id === itemId);
-        const updatedItems = collection.items.filter((i) => i.id !== itemId);
+        const itemToDelete = existingItems.find(item => item.id === itemId);
+        const updatedItems = existingItems.filter((i) => i.id !== itemId);
 
         // -------------------------------
         // 🧠 DELETE FROM CARDS TABLE
@@ -490,7 +496,7 @@ export const RemoveItemFromCollection = async (req, res) => {
         // -------------------------------
         // 💾 UPDATE COLLECTION
         // -------------------------------
-        const { data, error } = await updateCollectionItems(token, category, updatedItems);
+        const { data, error } = await updateCollectionItems(token, category, updatedItems, author_id ?? null);
 
         if (error) {
             console.error("Error updating collection:", error);
