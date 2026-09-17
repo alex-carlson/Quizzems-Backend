@@ -34,7 +34,8 @@ export const getAllCollections = async (req, res) => {
         const { data, error } = await supabase
             .from('collections')
             .select(COLLECTION_SELECT)
-            .eq('private', false);
+            .eq('private', false)
+            .gt('items_length', 0);
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -108,6 +109,7 @@ export const getLatestCollections = async (req, res) => {
             .from('collections')
             .select(COLLECTION_SELECT)
             .eq('private', false)
+            .gt('items_length', 0)
             .order('created_at', { ascending: false })
             .limit(max);
 
@@ -133,6 +135,7 @@ export const getMostPopularCollections = async (req, res) => {
             .from('collections')
             .select(COLLECTION_SELECT_WITH_STATS)
             .eq('private', false)
+            .gt('items_length', 0)
             .order('times_played', { ascending: false, nullsFirst: false })
             .limit(max);
         if (error) {
@@ -155,6 +158,7 @@ export const getLatestCollectionsWithThumbnails = async (req, res) => {
             .from('collections')
             .select(COLLECTION_SELECT)
             .eq('private', false)
+            .gt('items_length', 0)
             .order('created_at', { ascending: false })
             .limit(max);
 
@@ -184,7 +188,8 @@ export const getRandomCollections = async (req, res) => {
         const { data, error } = await supabase
             .from('collections')
             .select(COLLECTION_SELECT)
-            .eq('private', false);
+            .eq('private', false)
+            .gt('items_length', 0);
 
         if (error) {
             return res.status(500).json({ error: error.message });
@@ -214,7 +219,8 @@ export const getDailyCollection = async (req, res) => {
         const { data: idData, error: idError } = await supabase
             .from('collections')
             .select('id, created_at')
-            .eq('private', false);
+            .eq('private', false)
+            .gt('items_length', 0);
         if (idError) {
             return res.status(500).json({ error: idError.message });
         }
@@ -252,7 +258,8 @@ export const getDailyCollection = async (req, res) => {
             .from('collections')
             .select(COLLECTION_SELECT)
             .eq('id', chosenId)
-            .eq('private', false);
+            .eq('private', false)
+            .gt('items_length', 0);
 
         if (error || !data || !data.length) {
             return res.status(404).json({ error: 'No collections found' });
@@ -281,7 +288,8 @@ export const getWeeklyCategory = async (req, res) => {
         const { data: idData, error: idError } = await supabase
             .from('collections')
             .select('id, created_at')
-            .eq('private', false);
+            .eq('private', false)
+            .gt('items_length', 0);
         if (idError) {
             return res.status(500).json({ error: idError.message });
         }
@@ -319,7 +327,8 @@ export const getWeeklyCategory = async (req, res) => {
             .from('collections')
             .select(COLLECTION_SELECT)
             .eq('id', chosenId)
-            .eq('private', false);
+            .eq('private', false)
+            .gt('items_length', 0);
 
         if (error || !data || !data.length) {
             return res.status(404).json({ error: 'No collections found' });
@@ -363,7 +372,8 @@ export const getPaginatedCollections = async (req, res) => {
         const { count: totalCount, error: countError } = await supabase
             .from('collections')
             .select('*', { count: 'exact', head: true })
-            .eq('private', false);
+            .eq('private', false)
+            .gt('items_length', 0);
 
         if (countError) {
             return res.status(500).json({ error: countError.message });
@@ -374,7 +384,8 @@ export const getPaginatedCollections = async (req, res) => {
             const { data: allData, error } = await supabase
                 .from('collections')
                 .select(COLLECTION_SELECT_WITH_STATS)
-                .eq('private', false);
+                .eq('private', false)
+                .gt('items_length', 0);
 
             if (error) {
                 console.error('Error fetching all collections for filtering:', error);
@@ -444,6 +455,7 @@ export const getPaginatedCollections = async (req, res) => {
                 .from('collections')
                 .select(COLLECTION_SELECT_WITH_STATS)
                 .eq('private', false)
+                .gt('items_length', 0)
                 .order(sortColumn, { ascending })
                 .range(offset, offset + limitNum - 1);
 
@@ -482,6 +494,7 @@ export const searchCollections = async (req, res) => {
             .from('collections')
             .select(COLLECTION_SELECT_WITH_STATS)
             .eq('private', false)
+            .gt('items_length', 0)
             .or(`category.ilike.%${searchTerm}%,tags.ilike.%${searchTerm}%`);
 
         if (matchingError) {
@@ -502,6 +515,7 @@ export const searchCollections = async (req, res) => {
             .from('collections')
             .select(COLLECTION_SELECT_WITH_STATS)
             .eq('private', false)
+            .gt('items_length', 0)
             .not('id', 'in', `(${excludeIds.join(',')})`)
             .limit(10 - matching.length);
 
@@ -530,6 +544,7 @@ export const getCollectionsByTag = async (req, res) => {
             .from('collections')
             .select(COLLECTION_SELECT)
             .eq('private', false)
+            .gt('items_length', 0)
             .ilike('tags', `%${searchTag}%`);
         if (error) {
             console.error('Error fetching collections by tag:', error);
