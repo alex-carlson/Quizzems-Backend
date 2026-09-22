@@ -8,8 +8,6 @@ const uploadBase64ToSupabase = async (req, res, next) => {
     try {
         const { base64Image, folder } = req.body;
 
-        console.log("uploading image to supabase");
-
         if (!base64Image) {
             return res.status(400).json({ error: 'Base64 image is required' });
         }

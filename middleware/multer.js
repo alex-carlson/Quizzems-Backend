@@ -51,7 +51,6 @@ async function uploadToR2(buffer, fileName, contentType) {
         const endpoint = process.env.AWS_S3_PUBLIC_URL || process.env.AWS_S3_ENDPOINT;
         const publicUrl = `${endpoint.replace(/\/$/, "")}/${fileName}`;
 
-        console.log(`Uploaded to Cloudflare: ${publicUrl}`);
         return publicUrl;
     } catch (error) {
         console.error('R2 Upload Error:', {
@@ -266,20 +265,11 @@ export const UploadToSupabase = async (req, res, next) => {
         // Upload to Cloudflare R2
         try {
             const publicURL = await uploadToR2(file.buffer, finalFileName, file.mimetype);
-            console.log("🚀 R2 Public URL:", publicURL);
             req.uploadedImageUrl = publicURL;
 
             // Convert GIF asynchronously if this is a GIF upload
             if (fileExtension === 'gif') {
-                console.log("🔄 Starting GIF conversion for:", finalFileName);
                 convertGifOnUpload(finalFileName, file.buffer)
-                    .then(result => {
-                        if (result && !result.skipped) {
-                            console.log("✅ GIF conversion completed:", finalFileName);
-                        } else if (result && result.skipped) {
-                            console.log("ℹ️ GIF conversion skipped (files exist):", finalFileName);
-                        }
-                    })
                     .catch(error => {
                         console.error("❌ GIF conversion failed:", finalFileName, error.message);
                     });

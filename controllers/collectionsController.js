@@ -661,7 +661,6 @@ export const getUserCollection = async (req, res) => {
         }
 
         if (!data) {
-            console.log('No collection found for query parameters:', { username, collection });
             return res.status(404).json({
                 error: 'Collection not found',
                 searchedFor: { username, collection }
@@ -841,6 +840,23 @@ export const createNewCollection = async (req, res) => {
             strict: true,
             trim: true
         });
+
+        // Prevent a user from creating two quizzes with the same name (case-insensitive)
+        const { data: existing, error: existingError } = await getSupabaseClientWithToken(token)
+            .from('collections')
+            .select('id')
+            .eq('author_uuid', author_uuid)
+            .ilike('category', category)
+            .limit(1);
+
+        if (existingError) {
+            console.error('Duplicate check error:', existingError.message);
+            return res.status(500).json({ error: existingError.message });
+        }
+
+        if (existing && existing.length > 0) {
+            return res.status(409).json({ error: 'You already have a quiz with this name' });
+        }
 
         // ✅ Proceed with insertion
         const { data, error } = await getSupabaseClientWithToken(token)

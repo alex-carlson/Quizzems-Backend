@@ -30,23 +30,20 @@ export async function convertGifOnUpload(fileName, gifBuffer) {
 
     const baseName = fileName.replace(/\.gif$/i, '');
     const mp4Key = `${baseName}.mp4`;
-    const webpKey = `${baseName}.webp`;
 
     // Skip if both conversions already exist
-    const [mp4Exists, webpExists] = await Promise.all([
+    const [mp4Exists] = await Promise.all([
         exists(mp4Key),
-        exists(webpKey)
     ]);
 
-    if (mp4Exists && webpExists) {
+    if (mp4Exists) {
         console.log("Conversion files already exist for:", fileName);
-        return { mp4Key, webpKey, skipped: true };
+        return { mp4Key, skipped: true };
     }
 
     const safeName = fileName.replace(/[\/\\:*?"<>|]/g, "_").replace(/\.gif$/i, "");
     const gifPath = path.join(TMP, `${safeName}_${Date.now()}.gif`);
     const mp4Path = path.join(TMP, `${safeName}_${Date.now()}.mp4`);
-    const webpPath = path.join(TMP, `${safeName}_${Date.now()}.webp`);
 
     try {
         // Write GIF buffer to temp file
@@ -105,50 +102,15 @@ export async function convertGifOnUpload(fileName, gifBuffer) {
             }));
         }
 
-        // Convert to WebP (if not exists)
-        if (!webpExists) {
-            await new Promise((resolve, reject) => {
-                ffmpeg(gifPath)
-                    .inputOptions([
-                        "-f gif",
-                        "-analyzeduration 100M",
-                        "-probesize 100M"
-                    ])
-                    .outputOptions([
-                        "-vcodec libwebp",
-                        "-lossless 0",
-                        "-q:v 75",
-                        "-preset default",
-                        "-loop 0",
-                        "-an"
-                    ])
-                    .videoFilters("scale=trunc(iw/2)*2:trunc(ih/2)*2,fps=30")
-                    .toFormat("webp")
-                    .on("start", cmd => console.log("FFmpeg WebP command:", cmd))
-                    .on("error", reject)
-                    .on("end", resolve)
-                    .save(webpPath);
-            });
-
-            // Upload WebP
-            const webpBuffer = fs.readFileSync(webpPath);
-            await s3Client.send(new PutObjectCommand({
-                Bucket: bucket,
-                Key: webpKey,
-                Body: webpBuffer,
-                ContentType: "image/webp"
-            }));
-        }
-
         console.log("Successfully converted GIF:", fileName);
-        return { mp4Key, webpKey, skipped: false };
+        return { mp4Key, skipped: false };
 
     } catch (error) {
         console.error("Failed to convert GIF:", fileName, error);
         return null;
     } finally {
         // Clean up temp files
-        [gifPath, mp4Path, webpPath].forEach(f => {
+        [gifPath, mp4Path].forEach(f => {
             if (fs.existsSync(f)) {
                 try {
                     fs.unlinkSync(f);

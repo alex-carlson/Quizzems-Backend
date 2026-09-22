@@ -35,7 +35,18 @@ const fetchCollection = async (token, category, author_id = null) => {
         );
     }
 
-    return await query.single();
+    // Avoid .single() (errors on 0 rows too) so we can report "not found" vs "duplicate" distinctly
+    const { data, error } = await query.limit(2);
+    if (error) {
+        return { data: null, error };
+    }
+    if (!data || data.length === 0) {
+        return { data: null, error: null };
+    }
+    if (data.length > 1) {
+        console.warn(`fetchCollection: multiple collections matched category="${category}" author_id="${author_id}"; using the first match`);
+    }
+    return { data: data[0], error: null };
 };
 
 // Helper: Update collection items by category and author_id (if provided)
@@ -211,8 +222,6 @@ const appendCardFromItem = async (token, collectionId, item) => {
             .select();
         if (error) {
             console.error("Supabase card update error:", error, "Fields:", updateFields);
-        } else {
-            console.log("Updated card data returned:", updatedData);
         }
     } else {
         ({ error } = await supabaseWithToken
@@ -322,8 +331,6 @@ export const AddItemToCollection = async (req, res) => {
 export const GetRandomItemsInCollection = async (req, res) => {
     try {
         const { count } = req.params;
-        const { types } = req.query;
-        console.log(req.query);
         if (!count) return res.status(400).json({ error: "Missing required fields" });
         const data = await fetchRandomItems(count, types);
         res.status(201).json(data);
