@@ -5,19 +5,33 @@ import { deleteFromR2 } from "../middleware/multer.js";
 // Helper: Extract token from request
 const getToken = (req) => req.headers.authorization?.split(" ")[1];
 
+const isCollectionAuthorOrCollaborator = (collection, author_id) => {
+    if (author_id === null || author_id === undefined || author_id === '') {
+        return false;
+    }
+
+    const normalizedAuthorId = String(author_id);
+    const ownerMatches = String(collection?.author_public_id ?? '') === normalizedAuthorId;
+    const collaboratorMatches = Array.isArray(collection?.collaborators)
+        ? collection.collaborators.some(id => String(id) === normalizedAuthorId)
+        : false;
+
+    return ownerMatches || collaboratorMatches;
+};
+
 // Helper: Fetch collection by category and author_id (if provided)
 const fetchCollection = async (token, category, author_id = null) => {
     let supabase = getSupabaseClientWithToken(token);
 
     let query = supabase
         .from("collections")
-        .select("items,id")
+        .select("items,id,author_public_id,collaborators")
         .eq("category", category);
 
     if (author_id !== null && author_id !== undefined) {
-        // Use .or() to check either author_public_id matches OR collaborators contains author_id
+        const normalizedAuthorId = String(author_id);
         query = query.or(
-            `author_public_id.eq.${author_id},collaborators.cs.{${author_id}}`
+            `author_public_id.eq."${normalizedAuthorId}",collaborators.cs.{"${normalizedAuthorId}"}`
         );
     }
 
@@ -32,9 +46,9 @@ const updateCollectionItems = async (token, category, updatedItems, author_id = 
         .update({ items: updatedItems })
         .eq("category", category);
     if (author_id !== null && author_id !== undefined) {
-        // Use .or() to match either author_public_id or collaborators contains author_id
+        const normalizedAuthorId = String(author_id);
         query = query.or(
-            `author_public_id.eq.${author_id},collaborators.cs.{${author_id}}`
+            `author_public_id.eq."${normalizedAuthorId}",collaborators.cs.{"${normalizedAuthorId}"}`
         );
     }
     return await query.select();
@@ -473,6 +487,16 @@ export const RemoveItemFromCollection = async (req, res) => {
 
         if (!collection) {
             console.log('[RemoveItemFromCollection] access denied for collection', { category, author_id });
+            return res.status(403).json({ error: "Collection not found or access denied" });
+        }
+
+        if (author_id !== null && author_id !== undefined && !isCollectionAuthorOrCollaborator(collection, author_id)) {
+            console.log('[RemoveItemFromCollection] collaborator check failed', {
+                category,
+                author_id,
+                collectionAuthorPublicId: collection.author_public_id,
+                collaborators: collection.collaborators || []
+            });
             return res.status(403).json({ error: "Collection not found or access denied" });
         }
 
