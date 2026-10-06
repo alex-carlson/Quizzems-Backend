@@ -175,14 +175,18 @@ export const filterCollections = (collections, filter) => {
     return collections.filter(collection => {
         if (!collection) return false;
 
-        const titleMatch = collection.category &&
-            typeof collection.category === 'string' &&
-            collection.category.toLowerCase().includes(searchTerm);
+        const titles = [collection.category, collection.title];
+        const titleMatch = titles.some(t =>
+            typeof t === 'string' && t.toLowerCase().includes(searchTerm)
+        );
 
-        const tagsMatch = collection.tags &&
-            Array.isArray(collection.tags) &&
-            collection.tags.some(tag =>
-                tag && typeof tag === 'string' && tag.toLowerCase().includes(searchTerm)
+        // Tags may be stored as an array or a comma-separated string
+        const tags = typeof collection.tags === 'string'
+            ? collection.tags.split(',')
+            : collection.tags;
+        const tagsMatch = Array.isArray(tags) &&
+            tags.some(tag =>
+                typeof tag === 'string' && tag.toLowerCase().includes(searchTerm)
             );
 
         return titleMatch || tagsMatch;
