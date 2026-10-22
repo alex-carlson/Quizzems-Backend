@@ -19,6 +19,7 @@ import {
   getPopularTags,
   getRecommendedTags,
   getCollectionsByTag,
+  getCollectionsByIds,
   getDailyCollection,
   incrementTimesPlayed,
   getWeeklyCategory,
@@ -29,6 +30,8 @@ const router = Router();
 
 // GET collection by ID (public) - Most specific first
 router.get('/id/:id', verifySupabaseToken, getUserCollectionById);
+
+router.get('/names', getCollectionsByIds);
 
 // GET latest collections (public) - Static routes before dynamic
 router.get('/latest', (req, res, next) => {

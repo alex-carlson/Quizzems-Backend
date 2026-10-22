@@ -602,6 +602,36 @@ export const getUserCollectionById = async (req, res) => {
     }
 };
 
+export const getCollectionsByIds = async (req, res) => {
+    try {
+        const ids = req.query.ids
+            ? req.query.ids.split(',').map(id => id.trim()).filter(Boolean)
+            : [];
+
+        if (!ids.length) {
+            return res.status(400).json({
+                error: 'No collection IDs provided'
+            });
+        }
+
+        const { data, error } = await supabase
+            .from('collections')
+            .select('category')
+            .in('id', ids);
+
+        if (error) {
+            console.error('Error fetching collections by IDs:', error);
+            return res.status(500).json({ error: error.message });
+        }
+
+        const returnCollections = data.map(collection => collection.category);
+        return res.status(200).json(returnCollections);
+    } catch (err) {
+        console.error('Error in getCollectionsByIds:', err);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
 export const getUserCollectionId = async (req, res) => {
     try {
         const { uid, slug } = req.params;
