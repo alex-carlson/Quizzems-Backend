@@ -330,8 +330,9 @@ export const AddItemToCollection = async (req, res) => {
 
 export const GetRandomItemsInCollection = async (req, res) => {
     try {
-        const { count, types } = req.params;
+        const { count } = req.params;
         if (!count) return res.status(400).json({ error: "Missing required fields" });
+        const { types } = req.query;
         const data = await fetchRandomItems(count, types);
         res.status(201).json(data);
     } catch (err) {
