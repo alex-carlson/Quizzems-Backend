@@ -274,6 +274,73 @@ export const getDailyCollection = async (req, res) => {
     }
 };
 
+export const getDailyQuizzes = async (req, res) => {
+    try {
+        // Use the current day as a seed
+        const estDate = new Date(
+            new Date().toLocaleString("en-US", { timeZone: "America/New_York" })
+        );
+        const seed = estDate.getUTCFullYear() + '-' + (estDate.getUTCMonth() + 1) + '-' + estDate.getUTCDate();
+
+        // Get all public collection IDs and created_at
+        const { data: idData, error: idError } = await supabase
+            .from('collections')
+            .select('id, created_at')
+            .eq('private', false)
+            .gt('items_length', 0);
+        if (idError) {
+            return res.status(500).json({ error: idError.message });
+        }
+        if (!idData || idData.length < 4) {
+            return res.status(404).json({ error: 'Not enough collections found' });
+        }
+
+        // Sort by id for absolute stability
+        idData.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+
+        // Hash function: FNV-1a 32bit
+        function hash(str) {
+            let h = 2166136261 >>> 0;
+            for (let i = 0; i < str.length; i++) {
+                h ^= str.charCodeAt(i);
+                h = Math.imul(h, 16777619);
+            }
+            return h >>> 0;
+        }
+
+        // Pick the 4 collections with the highest hash(seed+id)
+        const collectionHashes = idData.map(col => ({
+            id: col.id,
+            hash: hash(seed + ':' + col.id)
+        }));
+
+        // Sort by hash descending and pick top 4
+        collectionHashes.sort((a, b) => b.hash - a.hash);
+        const chosenIds = collectionHashes.slice(0, 4).map(collection => collection.id);
+
+        // Fetch the chosen collections by ID
+        const { data, error } = await supabase
+            .from('collections')
+            .select(COLLECTION_SELECT)
+            .in('id', chosenIds)
+            .eq('private', false)
+            .gt('items_length', 0);
+
+        if (error || !data || data.length !== chosenIds.length) {
+            return res.status(404).json({ error: 'No collections found' });
+        }
+
+        // Add thumbnails and persist thumbnail_url if needed
+        const collectionsWithThumbnails = await addThumbnailsToCollections(
+            chosenIds.map(id => data.find(collection => collection.id === id))
+        );
+        res.json(collectionsWithThumbnails);
+    } catch (err) {
+        console.error('Error in getDailyQuizzes:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
 export const getWeeklyCategory = async (req, res) => {
     try {
     // Use the current day as a seed

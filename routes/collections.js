@@ -21,6 +21,7 @@ import {
   getCollectionsByTag,
   getCollectionsByIds,
   getDailyCollection,
+  getDailyQuizzes,
   incrementTimesPlayed,
   getWeeklyCategory,
 } from '../controllers/collectionsController.js';
@@ -93,6 +94,9 @@ router.get('/byTag/:tag', getCollectionsByTag);
 
 // GET one random collection that shuffles every 24 hours
 router.get('/random-daily', getDailyCollection);
+
+// GET four random collections that shuffle daily
+router.get('/daily-quizzes', getDailyQuizzes);
 
 router.get('/weeklyCategory', getWeeklyCategory);
 // router.get('/taggedCategories/:limit', getTaggedCategories);
