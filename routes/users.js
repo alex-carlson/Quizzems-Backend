@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import verifySupabaseToken from '../middleware/supabaseAuth.js';
+import { isAdmin } from '../middleware/verifyAdminToken.js';
 import { uploadUserAvatar, getUserProfile, createUserProfile, getUserProfileFromUsernameSlug, changeUsername, getUsernames, completeQuiz, deleteQuizScore, getUserSearchResults, addCollaborator, removeCollaborator, getCollaborators } from '../controllers/userController.js';
 import { upload, UploadToSupabase } from '../middleware/multer.js';
 import { contentModeration } from '../middleware/contentModeration.js';
@@ -25,6 +26,10 @@ router.post('/updateUsername', verifySupabaseToken, changeUsername);
 
 router.post('/completed-quiz', verifySupabaseToken, completeQuiz);
 router.get('/all', getUsernames);
+router.get('/me/admin-status', verifySupabaseToken, (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json({ isAdmin: isAdmin(req.user.id) });
+});
 router.get('/:uid', getUserProfile);
 router.get('/username/:usernameSlug', getUserProfileFromUsernameSlug);
 router.get('/search/:query', getUserSearchResults);

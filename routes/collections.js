@@ -25,7 +25,12 @@ import {
   incrementTimesPlayed,
   getWeeklyCategory,
 } from '../controllers/collectionsController.js';
+import {
+  getQuizOfTheDay,
+  updateQuizOfTheDay,
+} from '../controllers/quizOfTheDayController.js';
 import verifySupabaseToken from '../middleware/supabaseAuth.js';
+import verifyAdminToken from '../middleware/verifyAdminToken.js';
 
 const router = Router();
 
@@ -99,6 +104,15 @@ router.get('/random-daily', getDailyCollection);
 router.get('/daily-quizzes', getDailyQuizzes);
 
 router.get('/weeklyCategory', getWeeklyCategory);
+
+// Quiz of the day endpoints
+// GET public quiz of the day collection (public, no auth required)
+router.get('/quiz-of-the-day', getQuizOfTheDay);
+
+// POST admin-only endpoint to update quiz of the day (protected by admin verification)
+// Body: { quizIds: ["id1", "id2", ...] } - 1 to 6 public quiz IDs, maintains order
+router.post('/quiz-of-the-day', verifySupabaseToken, verifyAdminToken, updateQuizOfTheDay);
+
 // router.get('/taggedCategories/:limit', getTaggedCategories);
 
 export default router;
