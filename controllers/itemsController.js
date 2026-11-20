@@ -477,10 +477,25 @@ export const RemoveItemFromCollection = async (req, res) => {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
-        const { data: collection, error: fetchError } = await fetchCollection(token, category, author_id ?? null);
+        const { data: profile, error: profileError } = await supabase
+            .from("profiles")
+            .select("public_id")
+            .eq("id", req.user.id)
+            .maybeSingle();
+
+        if (profileError) {
+            console.error("Error fetching user public ID:", profileError);
+            return res.status(500).json({ error: "Failed to verify user", details: profileError });
+        }
+        if (!profile) {
+            return res.status(403).json({ error: "User profile not found" });
+        }
+
+        const publicId = profile.public_id;
+        const { data: collection, error: fetchError } = await fetchCollection(token, category, publicId);
 
         console.log('[RemoveItemFromCollection] collection lookup result', {
-            author_id,
+            publicId,
             collectionFound: !!collection,
             collectionId: collection?.id || null,
             collectionAuthorPublicId: collection?.author_public_id || null,
@@ -494,14 +509,14 @@ export const RemoveItemFromCollection = async (req, res) => {
         }
 
         if (!collection) {
-            console.log('[RemoveItemFromCollection] access denied for collection', { category, author_id });
+            console.log('[RemoveItemFromCollection] access denied for collection', { category, publicId });
             return res.status(403).json({ error: "Collection not found or access denied" });
         }
 
-        if (author_id !== null && author_id !== undefined && !isCollectionAuthorOrCollaborator(collection, author_id)) {
+        if (!isCollectionAuthorOrCollaborator(collection, publicId)) {
             console.log('[RemoveItemFromCollection] collaborator check failed', {
                 category,
-                author_id,
+                publicId,
                 collectionAuthorPublicId: collection.author_public_id,
                 collaborators: collection.collaborators || []
             });
@@ -514,6 +529,10 @@ export const RemoveItemFromCollection = async (req, res) => {
         const itemToDelete = existingItems.find(item => item.id === itemId);
         const updatedItems = existingItems.filter((i) => i.id !== itemId);
 
+        if (!itemToDelete) {
+            return res.status(404).json({ error: "Item not found in collection" });
+        }
+
         console.log('[RemoveItemFromCollection] item match', {
             itemId,
             foundItem: !!itemToDelete,
@@ -523,10 +542,32 @@ export const RemoveItemFromCollection = async (req, res) => {
         });
 
         // -------------------------------
+        // 💾 UPDATE COLLECTION
+        // -------------------------------
+        console.log('[RemoveItemFromCollection] updating collection items', {
+            category,
+            publicId,
+            newItemCount: updatedItems.length
+        });
+        const { data: updatedCollection, error } = await supabase
+            .from("collections")
+            .update({ items: updatedItems })
+            .eq("id", collection.id)
+            .select("id")
+            .maybeSingle();
+
+        if (error) {
+            console.error("Error updating collection:", error);
+            return res.status(500).json({ error: "Failed to update collection", details: error });
+        }
+        if (!updatedCollection) {
+            console.error("Collection update affected no rows:", { collectionId: collection.id });
+            return res.status(500).json({ error: "Collection was not updated" });
+        }
+
+        // -------------------------------
         // 🧠 DELETE FROM CARDS TABLE
         // -------------------------------
-        const supabase = getSupabaseClientWithToken(token);
-
         console.log('[RemoveItemFromCollection] deleting card row', { itemId });
         const { error: cardDeleteError } = await supabase
             .from("cards")
@@ -544,7 +585,7 @@ export const RemoveItemFromCollection = async (req, res) => {
         // -------------------------------
         // 🗑️ DELETE IMAGE FROM R2
         // -------------------------------
-        if (itemToDelete && (itemToDelete.src || itemToDelete.image)) {
+        if (itemToDelete.src || itemToDelete.image) {
             try {
                 const imageUrl = itemToDelete.src || itemToDelete.image;
                 const fileName = imageUrl.split('/').pop().split('?')[0];
@@ -555,25 +596,10 @@ export const RemoveItemFromCollection = async (req, res) => {
             }
         }
 
-        // -------------------------------
-        // 💾 UPDATE COLLECTION
-        // -------------------------------
-        console.log('[RemoveItemFromCollection] updating collection items', {
-            category,
-            author_id,
-            newItemCount: updatedItems.length
-        });
-        const { data, error } = await updateCollectionItems(token, category, updatedItems, author_id ?? null);
-
-        if (error) {
-            console.error("Error updating collection:", error);
-            return res.status(500).json({ error: "Failed to update collection", details: error });
-        }
-
         console.log('[RemoveItemFromCollection] success', {
             itemId,
             finalItemCount: updatedItems.length,
-            collectionId: collection.id
+            collectionId: updatedCollection.id
         });
 
         return res.status(200).json({ items: updatedItems });
