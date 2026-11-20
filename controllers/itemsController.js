@@ -5,15 +5,15 @@ import { deleteFromR2 } from "../middleware/multer.js";
 // Helper: Extract token from request
 const getToken = (req) => req.headers.authorization?.split(" ")[1];
 
-const isCollectionAuthorOrCollaborator = (collection, author_id) => {
-    if (author_id === null || author_id === undefined || author_id === '') {
+const isCollectionAuthorOrCollaborator = (collection, publicId) => {
+    if (publicId === null || publicId === undefined || publicId === '') {
         return false;
     }
 
-    const normalizedAuthorId = String(author_id);
-    const ownerMatches = String(collection?.author_public_id ?? '') === normalizedAuthorId;
+    const normalizedPublicId = String(publicId);
+    const ownerMatches = String(collection?.author_public_id ?? '') === normalizedPublicId;
     const collaboratorMatches = Array.isArray(collection?.collaborators)
-        ? collection.collaborators.some(id => String(id) === normalizedAuthorId)
+        ? collection.collaborators.some(id => String(id) === normalizedPublicId)
         : false;
 
     return ownerMatches || collaboratorMatches;
@@ -31,7 +31,7 @@ const fetchCollection = async (token, category, author_id = null) => {
     if (author_id !== null && author_id !== undefined) {
         const normalizedAuthorId = String(author_id);
         query = query.or(
-            `author_public_id.eq."${normalizedAuthorId}",collaborators.cs.{"${normalizedAuthorId}"}`
+            `author_public_id.eq."${normalizedAuthorId}",collaborators.cs.{${normalizedAuthorId}}`
         );
     }
 
@@ -59,7 +59,7 @@ const updateCollectionItems = async (token, category, updatedItems, author_id = 
     if (author_id !== null && author_id !== undefined) {
         const normalizedAuthorId = String(author_id);
         query = query.or(
-            `author_public_id.eq."${normalizedAuthorId}",collaborators.cs.{"${normalizedAuthorId}"}`
+            `author_public_id.eq."${normalizedAuthorId}",collaborators.cs.{${normalizedAuthorId}}`
         );
     }
     return await query.select();
