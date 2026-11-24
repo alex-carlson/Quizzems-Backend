@@ -529,10 +529,6 @@ export const RemoveItemFromCollection = async (req, res) => {
         const itemToDelete = existingItems.find(item => item.id === itemId);
         const updatedItems = existingItems.filter((i) => i.id !== itemId);
 
-        if (!itemToDelete) {
-            return res.status(404).json({ error: "Item not found in collection" });
-        }
-
         console.log('[RemoveItemFromCollection] item match', {
             itemId,
             foundItem: !!itemToDelete,
@@ -544,35 +540,39 @@ export const RemoveItemFromCollection = async (req, res) => {
         // -------------------------------
         // 💾 UPDATE COLLECTION
         // -------------------------------
-        console.log('[RemoveItemFromCollection] updating collection items', {
-            category,
-            publicId,
-            newItemCount: updatedItems.length
-        });
-        const { data: updatedCollection, error } = await supabase
-            .from("collections")
-            .update({ items: updatedItems })
-            .eq("id", collection.id)
-            .select("id")
-            .maybeSingle();
+        if (itemToDelete) {
+            console.log('[RemoveItemFromCollection] updating collection items', {
+                category,
+                publicId,
+                newItemCount: updatedItems.length
+            });
+            const { data: updatedCollection, error } = await supabase
+                .from("collections")
+                .update({ items: updatedItems })
+                .eq("id", collection.id)
+                .select("id")
+                .maybeSingle();
 
-        if (error) {
-            console.error("Error updating collection:", error);
-            return res.status(500).json({ error: "Failed to update collection", details: error });
-        }
-        if (!updatedCollection) {
-            console.error("Collection update affected no rows:", { collectionId: collection.id });
-            return res.status(500).json({ error: "Collection was not updated" });
+            if (error) {
+                console.error("Error updating collection:", error);
+                return res.status(500).json({ error: "Failed to update collection", details: error });
+            }
+            if (!updatedCollection) {
+                console.error("Collection update affected no rows:", { collectionId: collection.id });
+                return res.status(500).json({ error: "Collection was not updated" });
+            }
         }
 
         // -------------------------------
         // 🧠 DELETE FROM CARDS TABLE
         // -------------------------------
         console.log('[RemoveItemFromCollection] deleting card row', { itemId });
-        const { error: cardDeleteError } = await supabase
+        const { data: deletedCards, error: cardDeleteError } = await supabase
             .from("cards")
             .delete()
-            .eq("id", itemId);
+            .eq("id", itemId)
+            .eq("collection", collection.id)
+            .select("id");
 
         if (cardDeleteError) {
             console.error("Error deleting card:", cardDeleteError);
@@ -581,11 +581,14 @@ export const RemoveItemFromCollection = async (req, res) => {
                 details: cardDeleteError
             });
         }
+        if (!itemToDelete && deletedCards.length === 0) {
+            return res.status(404).json({ error: "Item not found in collection" });
+        }
 
         // -------------------------------
         // 🗑️ DELETE IMAGE FROM R2
         // -------------------------------
-        if (itemToDelete.src || itemToDelete.image) {
+        if (itemToDelete && (itemToDelete.src || itemToDelete.image)) {
             try {
                 const imageUrl = itemToDelete.src || itemToDelete.image;
                 const fileName = imageUrl.split('/').pop().split('?')[0];
@@ -599,7 +602,7 @@ export const RemoveItemFromCollection = async (req, res) => {
         console.log('[RemoveItemFromCollection] success', {
             itemId,
             finalItemCount: updatedItems.length,
-            collectionId: updatedCollection.id
+            collectionId: collection.id
         });
 
         return res.status(200).json({ items: updatedItems });
